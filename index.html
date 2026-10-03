@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>image to riso</title>
+    <meta
+      name="description"
+      content="Separa una imagen en capas de tinta para imprimir en risografía."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&family=JetBrains+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="sidebar-title">image to riso</div>
+
+        <!-- IMAGE -->
+        <div class="section">
+          <div class="section-label">IMAGEN</div>
+          <button class="btn" id="btn-load" type="button">[ cargar imagen ]</button>
+          <input
+            type="file"
+            id="file-input"
+            accept="image/jpeg,image/png,image/webp"
+            hidden
+          />
+          <div class="section-meta" id="meta-image">
+            sin imagen · también puedes arrastrarla al lienzo
+          </div>
+        </div>
+
+        <!-- WORKSHOP -->
+        <div class="section">
+          <div class="section-label">TALLER</div>
+          <div class="format-toggle" id="toggle-workshop">
+            <button class="toggle-btn" type="button" data-value="aoi">aoi club</button>
+            <span class="toggle-sep">|</span>
+            <button class="toggle-btn" type="button" data-value="rata">rata estudio</button>
+          </div>
+        </div>
+
+        <!-- SEPARATION MODE -->
+        <div class="section">
+          <div class="section-label">SEPARACIÓN</div>
+          <div class="btn-stack" id="group-mode">
+            <button class="btn" type="button" data-value="auto">[ automática ]</button>
+            <button class="btn" type="button" data-value="cmyk">[ cmyk ]</button>
+            <button class="btn" type="button" data-value="rgb">[ rgb ]</button>
+          </div>
+          <div class="section-meta" id="meta-mode"></div>
+        </div>
+
+        <!-- LAYERS -->
+        <div class="section">
+          <div class="section-label">CAPAS</div>
+          <div id="layer-list"></div>
+          <button class="btn" id="btn-add-layer" type="button">[ + capa ]</button>
+          <div class="section-meta" id="meta-layers"></div>
+        </div>
+
+        <!-- SCREENING -->
+        <div class="section">
+          <div class="section-label">TRAMA</div>
+          <div class="field">
+            <div class="field-label">aplicar a</div>
+            <div class="format-toggle" id="toggle-scope"></div>
+          </div>
+          <button class="btn" id="btn-follow" type="button">[ usar trama global ]</button>
+          <div class="section-meta" id="meta-scope"></div>
+
+          <div class="btn-stack" id="group-style">
+            <button class="btn" type="button" data-value="continuous">[ tono continuo ]</button>
+            <button class="btn" type="button" data-value="halftone">[ halftone ]</button>
+            <button class="btn" type="button" data-value="dither">[ dither ]</button>
+          </div>
+
+          <div id="panel-halftone">
+            <div class="field">
+              <div class="field-label">forma</div>
+              <div class="format-toggle wrap" id="toggle-shape">
+                <button class="toggle-btn" type="button" data-value="circle">circle</button>
+                <span class="toggle-sep">|</span>
+                <button class="toggle-btn" type="button" data-value="line">line</button>
+                <span class="toggle-sep">|</span>
+                <button class="toggle-btn" type="button" data-value="square">square</button>
+                <span class="toggle-sep">|</span>
+                <button class="toggle-btn" type="button" data-value="ellipse">ellipse</button>
+                <span class="toggle-sep">|</span>
+                <button class="toggle-btn" type="button" data-value="cross">cross</button>
+              </div>
+            </div>
+            <div class="slider-row">
+              <div class="slider-head">
+                <span class="field-label">frecuencia</span>
+                <span class="slider-value" id="val-frequency"></span>
+              </div>
+              <input type="range" id="slider-frequency" min="3" max="24" step="1" />
+            </div>
+            <div class="slider-row" id="row-angle">
+              <div class="slider-head">
+                <span class="field-label">ángulo</span>
+                <span class="slider-value" id="val-angle"></span>
+              </div>
+              <input type="range" id="slider-angle" min="0" max="90" step="1" />
+            </div>
+            <div class="section-meta" id="meta-angles"></div>
+          </div>
+
+          <div id="panel-dither">
+            <div class="field">
+              <div class="field-label">tipo</div>
+              <div class="format-toggle wrap" id="toggle-dither">
+                <button class="toggle-btn" type="button" data-value="atkinson">atkinson</button>
+                <span class="toggle-sep">|</span>
+                <button class="toggle-btn" type="button" data-value="floydsteinberg">floydsteinberg</button>
+                <span class="toggle-sep">|</span>
+                <button class="toggle-btn" type="button" data-value="bayer">bayer</button>
+                <span class="toggle-sep">|</span>
+                <button class="toggle-btn" type="button" data-value="none">none</button>
+              </div>
+            </div>
+            <div class="slider-row">
+              <div class="slider-head">
+                <span class="field-label">umbral</span>
+                <span class="slider-value" id="val-threshold"></span>
+              </div>
+              <input type="range" id="slider-threshold" min="1" max="254" step="1" />
+            </div>
+          </div>
+        </div>
+
+        <!-- FORMAT + EXPORT -->
+        <div class="sidebar-bottom">
+          <div class="format-toggle" id="toggle-format">
+            <button class="toggle-btn" type="button" data-value="A4">A4</button>
+            <span class="toggle-sep">|</span>
+            <button class="toggle-btn" type="button" data-value="A3">A3</button>
+          </div>
+          <div class="format-toggle" id="toggle-orientation">
+            <button class="toggle-btn" type="button" data-value="portrait">vertical</button>
+            <span class="toggle-sep">|</span>
+            <button class="toggle-btn" type="button" data-value="landscape">horizontal</button>
+          </div>
+          <button class="btn btn-export" id="btn-pdf-color" type="button">[ export PDF color ]</button>
+          <button class="btn btn-export" id="btn-pdf-bw" type="button">[ export PDF b/n ]</button>
+          <button class="btn btn-export" id="btn-png-layers" type="button">[ export PNG capas ]</button>
+          <div class="section-meta" id="meta-status">carga una imagen para empezar</div>
+        </div>
+      </aside>
+
+      <main class="canvas-area" id="canvas-area">
+        <div class="canvas-wrapper" id="canvas-wrapper"></div>
+      </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="libs/p5.riso.js"></script>
+    <script src="inks.js"></script>
+    <script src="sketch.js"></script>
+  </body>
+</html>
