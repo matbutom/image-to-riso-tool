@@ -1,4 +1,4 @@
-# riso separator
+# image to riso tool
 
 Herramienta web estática para separar una imagen (JPG, PNG o WebP) en capas de tinta para imprimir en risografía.
 
