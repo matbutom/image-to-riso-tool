@@ -27,6 +27,7 @@ Usa [p5.js](https://p5js.org) 1.9, [p5.riso](https://github.com/antiboredom/p5.r
 ```
 index.html
 favicon.svg          favicon estático (brand.js lo anima)
+img/og-image.png     miniatura para compartir el link (fuente: img/og-banner.html)
 css/style.css        interfaz
 js/brand.js          favicon animado
 js/inks.js           tintas de cada taller

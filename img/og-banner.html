@@ -1,0 +1,171 @@
+<!doctype html>
+<!--
+  og-banner.html — source of img/og-image.png (link preview for WhatsApp,
+  Instagram, iMessage…). 1200 × 630. A still of the logo animation: the two
+  inks overprinted, slightly out of register. Regenerate with:
+
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new \
+    --hide-scrollbars --window-size=1200,630 --virtual-time-budget=6000 \
+    --screenshot=img/og-image.png img/og-banner.html
+-->
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Space+Mono:wght@400;700&display=block"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@125,800&text=image%20to%20riso&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --blue: #3255a4;
+        --pink: #ff48b0;
+        --yellow: #ffe800;
+        --paper: #fbfaf6;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        background: var(--paper);
+        color: var(--blue);
+        font-family: "Space Grotesk", sans-serif;
+      }
+      /* faint halftone screen + a pink one fading in from the corner */
+      body::before,
+      body::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+      }
+      body::before {
+        background-image: radial-gradient(color-mix(in srgb, var(--blue) 14%, transparent) 1.4px, transparent 1.8px);
+        background-size: 14px 14px;
+      }
+      body::after {
+        background-image: radial-gradient(var(--pink) 2.4px, transparent 2.8px);
+        background-size: 12px 12px;
+        transform: rotate(15deg) scale(1.4);
+        -webkit-mask-image: radial-gradient(circle at 100% 100%, #000 0%, transparent 38%);
+        mask-image: radial-gradient(circle at 100% 100%, #000 0%, transparent 38%);
+        opacity: 0.55;
+        mix-blend-mode: multiply;
+      }
+      .frame {
+        position: absolute;
+        inset: 34px 44px;
+        display: flex;
+        flex-direction: column;
+        border-top: 2px solid var(--blue);
+        border-bottom: 2px solid var(--blue);
+        z-index: 1;
+      }
+      .bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 0;
+        font-family: "Space Mono", monospace;
+        font-size: 22px;
+        letter-spacing: 0.02em;
+      }
+      .bar b {
+        color: var(--pink);
+      }
+      .bar.bottom {
+        border-top: 1px dashed color-mix(in srgb, var(--blue) 45%, transparent);
+      }
+      .bar.top {
+        border-bottom: 1px dashed color-mix(in srgb, var(--blue) 45%, transparent);
+      }
+      .hero {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 26px;
+      }
+      .mark {
+        width: 300px;
+        height: 170px;
+        isolation: isolate;
+        overflow: visible;
+      }
+      .mark circle {
+        mix-blend-mode: multiply;
+      }
+      .word {
+        display: inline-grid;
+        isolation: isolate;
+        font-family: "Archivo", sans-serif;
+        font-weight: 800;
+        font-stretch: 125%;
+        font-size: 96px;
+        line-height: 1;
+        letter-spacing: -0.01em;
+      }
+      .word span {
+        grid-area: 1 / 1;
+        mix-blend-mode: multiply;
+      }
+      .word .p {
+        color: var(--pink);
+        transform: translate(6px, 4px);
+      }
+      .word .b {
+        color: var(--blue);
+      }
+      .tag {
+        font-size: 30px;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+      }
+      .inks {
+        display: flex;
+        isolation: isolate;
+      }
+      .inks i {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        margin-left: -7px;
+        mix-blend-mode: multiply;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <div class="bar top">
+        <span>riso.mateoarce.cl</span>
+        <span>póster <b>·</b> fanzine <b>·</b> flipbook</span>
+      </div>
+
+      <div class="hero">
+        <!-- the logo, frozen mid-overprint -->
+        <svg class="mark" viewBox="0 0 300 170" aria-hidden="true">
+          <circle cx="108" cy="85" r="80" fill="#FF48B0" />
+          <circle cx="192" cy="85" r="80" fill="#3255A4" />
+        </svg>
+        <div class="word"><span class="p">image to riso</span><span class="b">image to riso</span></div>
+        <p class="tag">separa tus imágenes en capas de tinta para risografía</p>
+      </div>
+
+      <div class="bar bottom">
+        <span class="inks">
+          <i style="background:#0078bf;margin-left:0"></i><i style="background:#ff48b0"></i><i style="background:#ffe800"></i><i style="background:#00a95c"></i><i style="background:#9d7ad2"></i><i style="background:#ff665e"></i><i style="background:#00838a"></i><i style="background:#000"></i>
+        </span>
+        <span>halftone · dither · 300 dpi · pdf · png</span>
+      </div>
+    </div>
+  </body>
+</html>
