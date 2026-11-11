@@ -4,7 +4,8 @@
   1. A video is loaded into the sidebar player; the user marks a start and an
      end and how many frames to take, evenly spaced in that range.
   2. Frames are laid out on A4/A3 sheets: each card is a binding strip (left,
-     blank, for staples or glue) plus the frame, in a grid sized to fit as
+     blank, for staples or glue: margin X) plus the frame, with a blank band
+     above and below it (margin Y), in a grid sized to fit as
      many cards as possible. Sheets are composed one at a time and fed to the
      normal pipeline (separation, screens, exports).
   3. Cut marks and frame numbers are not part of the image: they are drawn
@@ -41,12 +42,14 @@ function flipLayout() {
   const [aw, ah] = printableMM();
   const gw = aw - 2 * FLIP_INSET_MM;
   const gh = ah - 2 * FLIP_INSET_MM;
-  const binding = state.flip.binding;
+  const binding = state.flip.binding; // margin X: left strip
+  const marginY = state.flip.marginY; // margin Y: above and below the frame
   let frameW = FLIP_FRAME_MM[state.flip.size];
-  frameW = Math.min(frameW, gw - binding, gh * flipAspect); // a single card always fits
+  frameW = Math.min(frameW, gw - binding, (gh - 2 * marginY) * flipAspect); // a single card always fits
+  frameW = Math.max(1, frameW);
   const frameH = frameW / flipAspect;
   const cardW = binding + frameW;
-  const cardH = frameH;
+  const cardH = marginY + frameH + marginY;
   const cols = Math.max(1, Math.floor(gw / cardW));
   const rows = Math.max(1, Math.floor(gh / cardH));
   return {
@@ -54,6 +57,7 @@ function flipLayout() {
     rows,
     perSheet: cols * rows,
     binding,
+    marginY,
     frameW,
     frameH,
     cardW,
@@ -85,7 +89,7 @@ function flipCards(sheet, L = flipLayout()) {
 // ── SHEETS ──────────────────────────────────────
 
 function flipKey(sheet) {
-  return JSON.stringify([sheet, state.format, state.orientation, state.flip.size, state.flip.binding, flipFrames.length, flipAspect]);
+  return JSON.stringify([sheet, state.format, state.orientation, state.flip.size, state.flip.binding, state.flip.marginY, flipFrames.length, flipAspect]);
 }
 
 // The sheet shown in the preview, composed when needed
@@ -118,9 +122,9 @@ function composeFlipSheet(sheet) {
   ctx.fillRect(0, 0, W, H);
   flipCards(sheet, L).forEach(({ n, x, y }) => {
     const x0 = Math.round((x + L.binding) * k);
-    const y0 = Math.round(y * k);
+    const y0 = Math.round((y + L.marginY) * k);
     const x1 = Math.round((x + L.cardW) * k);
-    const y1 = Math.round((y + L.cardH) * k);
+    const y1 = Math.round((y + L.marginY + L.frameH) * k);
     ctx.drawImage(flipFrames[n], x0, y0, x1 - x0, y1 - y0);
   });
   const img = g.get();
@@ -339,7 +343,8 @@ function flipLayoutMeta() {
   const frames = flipFrames.length
     ? `${flipFrames.length} frames en ${total} hoja${total === 1 ? "" : "s"}`
     : "aún sin frames";
-  return `${L.cols} × ${L.rows} = ${L.perSheet} por hoja · frame ${Math.round(L.frameW)} × ${Math.round(L.frameH)} mm · ${frames}`;
+  const mm = (v) => Math.round(v * 10) / 10;
+  return `${L.cols} × ${L.rows} = ${L.perSheet} por hoja · tarjeta ${mm(L.cardW)} × ${mm(L.cardH)} mm · frame ${mm(L.frameW)} × ${mm(L.frameH)} mm · ${frames}`;
 }
 
 // Layer picker for marks: Auto | ● 1 | ● 2 ...
@@ -362,6 +367,8 @@ function syncFlipUI() {
   setActive("toggle-flip-size", state.flip.size);
   $("slider-flip-binding").value = state.flip.binding;
   $("val-flip-binding").textContent = `${state.flip.binding} mm`;
+  $("slider-flip-margin-y").value = state.flip.marginY;
+  $("val-flip-margin-y").textContent = `${state.flip.marginY} mm`;
   $("meta-flip-layout").textContent = flipLayoutMeta();
   renderFlipMarksToggle();
   const total = flipSheetCount();
@@ -408,6 +415,11 @@ function bindFlipUI() {
     state.flip.size = v;
     syncUI();
     schedule(STAGE.REBUILD);
+  });
+  $("slider-flip-margin-y").addEventListener("input", (e) => {
+    state.flip.marginY = parseFloat(e.target.value);
+    syncFlipUI();
+    schedule(STAGE.REBUILD, DEBOUNCE_MS);
   });
   $("slider-flip-binding").addEventListener("input", (e) => {
     state.flip.binding = parseInt(e.target.value, 10);

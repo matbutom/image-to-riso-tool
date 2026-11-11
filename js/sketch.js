@@ -32,7 +32,8 @@ const STAGE = { COMPOSITE: 0, PAINT: 1, SCREEN: 2, REBUILD: 3 };
 const state = {
   project: "poster", // poster | zine (8-page fanzine, zine.js) | flip (flipbook from a video, flip.js)
   zine: { pages: [null, null, null, null, null, null, null, null], tray: [] }, // image ids
-  flip: { size: "m", binding: 10, marks: "auto" }, // frame size s|m|l, binding strip mm, marks layer uid
+  // flipbook: frame size s|m|l, margin X (left binding strip) and Y (above + below) in mm, marks layer uid
+  flip: { size: "m", binding: 10, marginY: 0, marks: "auto" },
   colorRules: [], // eyedropper replacements, see recolor.js: { id, rgb, target: uid | "paper", tol }
   workshop: "aoi",
   mode: "auto", // auto | cmyk | rgb
