@@ -2,6 +2,7 @@
 
 Herramienta web estática para separar una imagen (JPG, PNG o WebP) en capas de tinta para imprimir en risografía.
 
+- **Proyecto:** póster (una imagen) o fanzine de 8 páginas en una sola hoja. En fanzine se suben varias imágenes (o un PDF, que se reparte en páginas) y se ordenan a mano arrastrándolas o haciendo clic en dos para intercambiarlas; las que sobran quedan en una bandeja. La hoja se impone sola (fila de arriba invertida: 5 4 3 2, abajo: 6 7 8 1), siempre en horizontal: A4 da páginas A7 y A3 da páginas A6. La preview marca los dobleces (azul) y el corte (rosa), que no se exportan.
 - **Talleres:** paletas de Aoi Club, Rata Estudio y Lab360 UDP, con sus valores exactos de color.
 - **Separación:** automática (mezcla las tintas elegidas para aproximar cada color, priorizando el tono), CMYK o RGB. Admite de 1 a 4 capas.
 - **Trama:** tono continuo, halftone (circle, line, square, ellipse, cross) o dither (atkinson, floydsteinberg, bayer, none). Puede ser global o propia de cada capa. Cada capa tiene su propio ángulo para evitar el moiré.
@@ -27,6 +28,7 @@ js/brand.js          favicon animado
 js/inks.js           tintas de cada taller
 js/separation.js     color → cobertura de tinta (modos auto y cmyk)
 js/sketch.js         preview, tramas, exportación e interfaz
+js/zine.js           fanzine de 8 páginas: imposición, orden de páginas y guías
 js/zoom.js           zoom y desplazamiento de la preview
 js/vendor/p5.riso.js
 ```

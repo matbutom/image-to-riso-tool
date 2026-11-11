@@ -55,16 +55,45 @@
               <span class="ms step-caret" aria-hidden="true">expand_more</span>
             </summary>
             <div class="step-body">
-              <button class="btn btn-primary" id="btn-load" type="button">
-                <span class="ms" aria-hidden="true">upload_file</span>Cargar imagen o PDF
-              </button>
-              <input
-                type="file"
-                id="file-input"
-                accept="image/jpeg,image/png,image/webp,application/pdf,.pdf"
-                hidden
-              />
-              <p class="meta" id="meta-image">sin imagen · también puedes arrastrarla al lienzo</p>
+              <div class="row">
+                <span class="row-label">Proyecto</span>
+                <div class="seg" id="toggle-project">
+                  <button class="seg-btn" type="button" data-value="poster">Póster</button>
+                  <button class="seg-btn" type="button" data-value="zine">Fanzine 8 pág.</button>
+                </div>
+              </div>
+
+              <!-- poster: one image -->
+              <div class="project-panel" id="panel-poster">
+                <button class="btn btn-primary" id="btn-load" type="button">
+                  <span class="ms" aria-hidden="true">upload_file</span>Cargar imagen o PDF
+                </button>
+                <input
+                  type="file"
+                  id="file-input"
+                  accept="image/jpeg,image/png,image/webp,application/pdf,.pdf"
+                  hidden
+                />
+                <p class="meta" id="meta-image">sin imagen · también puedes arrastrarla al lienzo</p>
+              </div>
+
+              <!-- zine: 8 pages in reading order + tray of unassigned images (zine.js) -->
+              <div class="project-panel" id="panel-zine" hidden>
+                <button class="btn btn-primary" id="btn-zine-add" type="button">
+                  <span class="ms" aria-hidden="true">upload_file</span>Subir imágenes o PDF
+                </button>
+                <input
+                  type="file"
+                  id="zine-input"
+                  accept="image/jpeg,image/png,image/webp,application/pdf,.pdf"
+                  multiple
+                  hidden
+                />
+                <div class="zine-pages" id="zine-pages" aria-label="páginas del fanzine"></div>
+                <p class="meta" id="meta-zine"></p>
+                <span class="row-label tray-label">Sin asignar</span>
+                <div class="zine-tray" id="zine-tray" aria-label="imágenes sin asignar"></div>
+              </div>
             </div>
           </details>
 
@@ -113,8 +142,8 @@
               <span class="ms step-caret" aria-hidden="true">expand_more</span>
             </summary>
             <div class="step-body">
-              <div class="row">
-                <span class="row-label">Editar</span>
+              <div class="field field-first">
+                <span class="row-label">Editar trama de</span>
                 <div class="seg" id="toggle-scope"></div>
               </div>
               <p class="meta" id="meta-scope"></p>
@@ -204,6 +233,7 @@
                   </button>
                 </div>
               </div>
+              <p class="meta" id="meta-page"></p>
               <div class="row">
                 <span class="row-label">Ajuste</span>
                 <div class="seg" id="toggle-fit">
@@ -281,6 +311,7 @@
     <script src="js/inks.js"></script>
     <script src="js/separation.js"></script>
     <script src="js/sketch.js"></script>
+    <script src="js/zine.js"></script>
     <script src="js/zoom.js"></script>
   </body>
 </html>

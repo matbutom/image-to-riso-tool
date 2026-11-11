@@ -333,6 +333,10 @@ input {
   margin-bottom: 6px;
 }
 
+.field-first {
+  margin-top: 0;
+}
+
 .sub-head {
   display: flex;
   justify-content: space-between;
@@ -482,6 +486,17 @@ input {
 
 .seg-btn .ms {
   font-size: 18px;
+}
+
+/* ink colour of a layer inside a segmented button (TRAMA → editar trama de) */
+.seg-dot {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  margin-right: 5px;
+  border-radius: 50%;
+  /* no multiply and a blue rim: the true ink reads on the yellow active cell too */
+  border: 1px solid var(--blue);
 }
 
 /* ── SLIDERS ─────────────────────────────────── */
@@ -657,6 +672,164 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
 
 .layer .slider-row {
   margin-top: 6px;
+}
+
+/* ── PROJECT: POSTER / ZINE ──────────────────── */
+
+.project-panel {
+  margin-top: 12px;
+}
+
+/* locked control (orientation in zine mode: always a landscape sheet) */
+.seg.is-locked {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* 8 pages in reading order, A7/A6 proportion */
+.zine-pages {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.zine-slot,
+.tray-item {
+  position: relative;
+  overflow: hidden;
+  background: var(--paper);
+  border: 1px solid var(--blue);
+  cursor: grab;
+  user-select: none;
+}
+
+.zine-slot {
+  aspect-ratio: 74 / 105;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.zine-slot img,
+.tray-item img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.zine-slot.fit-contain img {
+  object-fit: contain;
+  background: #fff;
+}
+
+.zine-slot.empty {
+  cursor: pointer;
+  border-style: dashed;
+  border-color: var(--blue-60);
+  color: var(--blue-60);
+}
+
+.zine-slot.empty:hover {
+  background: var(--yellow-35);
+  color: var(--blue);
+}
+
+.slot-label {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  padding: 1px 4px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--blue);
+  background: var(--paper);
+  border-top: 1px solid var(--blue);
+  border-right: 1px solid var(--blue);
+}
+
+.zine-slot.empty .slot-label {
+  border-color: var(--blue-60);
+  color: var(--blue-60);
+}
+
+.slot-x {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--blue);
+  background: var(--paper);
+  border: 1px solid var(--blue);
+  cursor: pointer;
+}
+
+.slot-x .ms {
+  font-size: 14px;
+}
+
+.zine-slot:hover .slot-x,
+.tray-item:hover .slot-x,
+.slot-x:focus-visible {
+  display: inline-flex;
+}
+
+.slot-x:hover {
+  background: var(--yellow);
+}
+
+/* click-to-swap selection and drop targets */
+.zine-slot.selected,
+.tray-item.selected {
+  outline: 2px solid var(--pink);
+  outline-offset: 1px;
+}
+
+.zine-slot.over,
+.tray-item.over,
+.zine-tray.over {
+  background: var(--yellow-35);
+  outline: 2px dashed var(--pink);
+  outline-offset: 1px;
+}
+
+.zine-slot.dragging,
+.tray-item.dragging {
+  opacity: 0.35;
+}
+
+.tray-label {
+  display: block;
+  margin: 14px 0 6px;
+}
+
+.zine-tray {
+  min-height: 62px;
+  padding: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 6px;
+  border: 1px dashed var(--blue-30);
+}
+
+.tray-item {
+  width: 38px;
+  height: 52px;
+}
+
+.tray-empty {
+  align-self: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--blue-60);
 }
 
 /* ── FOOTER: EXPORT ──────────────────────────── */

@@ -30,6 +30,8 @@ const STAGE = { COMPOSITE: 0, PAINT: 1, SCREEN: 2, REBUILD: 3 };
 // ── STATE ───────────────────────────────────────
 
 const state = {
+  project: "poster", // poster | zine (8-page fanzine on one sheet, see zine.js)
+  zine: { pages: [null, null, null, null, null, null, null, null], tray: [] }, // image ids
   workshop: "aoi",
   mode: "auto", // auto | cmyk | rgb
   format: "A4",
@@ -48,8 +50,10 @@ const state = {
 };
 
 let uidCounter = 0;
-let srcImg = null; // full-resolution source image
+let srcImg = null; // pipeline source: the poster image or the composed zine sheet (syncSource)
 let srcInfo = null; // { name, w, h }
+let posterImg = null; // image loaded in poster mode
+let posterInfo = null;
 let work = null; // preview working image + placement: { img, rect, pxScale }
 let inkMaps = []; // per layer ink coverage at preview size (Uint8ClampedArray, 255 = full ink)
 let screenedImgs = []; // per layer screened greyscale p5.Image (black = ink)
@@ -108,6 +112,7 @@ function draw() {
   }
 
   drawPrintableGuide();
+  if (state.project === "zine") drawZineGuides();
 }
 
 // Display size: the base preview size shrunk (never enlarged) to fit the area,
@@ -142,11 +147,18 @@ function drawEmptyState() {
   fill("#3255A4");
   textStyle(BOLD);
   textSize(Math.round(22 * q));
-  text("Arrastra una imagen o un PDF", cx, cy + 18 * q);
+  const zine = state.project === "zine";
+  text(zine ? "Arrastra las imágenes del fanzine" : "Arrastra una imagen o un PDF", cx, cy + 18 * q);
   textStyle(NORMAL);
   textSize(Math.round(13 * q));
   fill("#7088BF");
-  text("o haz clic para elegir un archivo · JPG, PNG, WebP o PDF", cx, cy + 46 * q);
+  text(
+    zine
+      ? "o haz clic para elegir varias · un PDF se reparte en páginas"
+      : "o haz clic para elegir un archivo · JPG, PNG, WebP o PDF",
+    cx,
+    cy + 46 * q,
+  );
 }
 
 // Preview-only guide: never part of an export
@@ -160,8 +172,37 @@ function drawPrintableGuide() {
 
 // ── GEOMETRY ────────────────────────────────────
 
+// A zine is always printed on a landscape sheet
+function pageOrientation() {
+  return state.project === "zine" ? "landscape" : state.orientation;
+}
+
 function orient([a, b]) {
-  return state.orientation === "portrait" ? [a, b] : [b, a];
+  return pageOrientation() === "portrait" ? [a, b] : [b, a];
+}
+
+// Pick the pipeline source for the current project
+function syncSource() {
+  if (state.project === "zine") {
+    const sheet = ensureZineSheet();
+    srcImg = sheet ? sheet.img : null;
+    srcInfo = sheet ? { name: `fanzine · ${zineAssignedCount()} de ${ZINE_PAGES} páginas`, w: srcImg.width, h: srcImg.height } : null;
+  } else {
+    srcImg = posterImg;
+    srcInfo = posterInfo;
+  }
+}
+
+// "hoja A4 horizontal · páginas de 74 × 105 mm (A7)"
+function zinePageMeta() {
+  const [w, h] = orient(PAGE_MM[state.format]);
+  const size = state.format === "A4" ? "A7" : "A6";
+  return `hoja ${state.format} horizontal · 8 páginas de ${Math.round(w / 4)} × ${Math.round(h / 2)} mm (${size}) · corta la línea rosa y dobla por las azules`;
+}
+
+// Format tag for exported file names
+function fileTag() {
+  return state.project === "zine" ? `${state.format}_fanzine` : state.format;
 }
 
 function pageMM() {
@@ -505,6 +546,7 @@ function grayToImage(gray, w, h) {
 
 function runPipeline(stage) {
   if (stage >= STAGE.REBUILD) {
+    syncSource();
     const [w, h] = canvasSize();
     if (w !== width || h !== height) resizeCanvas(w, h);
     rebuildRisoLayers();
@@ -586,8 +628,10 @@ const HISTORY_MAX = 100;
 const HISTORY_COALESCE_MS = 400;
 const undoHistory = { past: [], future: [], current: null, timer: null };
 
+// The zine sheet is derived from state.zine (+ zineImages), so only the poster
+// image needs to be kept by reference
 function snapshot() {
-  return { state: structuredClone(state), srcImg, srcInfo };
+  return { state: structuredClone(state), posterImg, posterInfo };
 }
 
 function snapshotKey(snap) {
@@ -595,7 +639,7 @@ function snapshotKey(snap) {
 }
 
 function sameSnapshot(a, b) {
-  return !!a && !!b && a.srcImg === b.srcImg && snapshotKey(a) === snapshotKey(b);
+  return !!a && !!b && a.posterImg === b.posterImg && snapshotKey(a) === snapshotKey(b);
 }
 
 function recordHistory() {
@@ -620,8 +664,8 @@ function restoreSnapshot(snap) {
   const s = structuredClone(snap.state);
   Object.keys(s).forEach((k) => (state[k] = s[k]));
   state.scope = scope; // syncScreenUI falls back to global if that layer is gone
-  srcImg = snap.srcImg;
-  srcInfo = snap.srcInfo;
+  posterImg = snap.posterImg;
+  posterInfo = snap.posterInfo;
   uidCounter = Math.max(uidCounter, ...state.layers.map((L) => L.uid));
   undoHistory.current = snap; // so the schedule() below doesn't record it again
   syncUI();
@@ -654,31 +698,40 @@ function syncHistoryUI() {
 
 // ── IMAGE LOADING ───────────────────────────────
 
-// First page of a PDF rasterised to a PNG blob (~300 dpi, long side capped)
-async function pdfToBlob(file) {
+// First pages of a PDF rasterised to PNG blobs (~300 dpi, long side capped)
+async function pdfToBlobs(file, maxPages = 1) {
   if (!window.pdfjsLib) throw new Error("no se pudo cargar el lector de PDF");
   pdfjsLib.GlobalWorkerOptions.workerSrc =
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
   const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
-  const page = await pdf.getPage(1);
-  const base = page.getViewport({ scale: 1 });
-  const scale = Math.min(300 / 72, 5000 / Math.max(base.width, base.height));
-  const vp = page.getViewport({ scale });
-  const cnv = document.createElement("canvas");
-  cnv.width = Math.round(vp.width);
-  cnv.height = Math.round(vp.height);
-  const ctx = cnv.getContext("2d");
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, cnv.width, cnv.height);
-  await page.render({ canvasContext: ctx, viewport: vp }).promise;
-  const blob = await new Promise((res) => cnv.toBlob(res, "image/png"));
   const pages = pdf.numPages;
+  const blobs = [];
+  for (let n = 1; n <= Math.min(pages, maxPages); n++) {
+    const page = await pdf.getPage(n);
+    const base = page.getViewport({ scale: 1 });
+    const scale = Math.min(300 / 72, 5000 / Math.max(base.width, base.height));
+    const vp = page.getViewport({ scale });
+    const cnv = document.createElement("canvas");
+    cnv.width = Math.round(vp.width);
+    cnv.height = Math.round(vp.height);
+    const ctx = cnv.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, cnv.width, cnv.height);
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    blobs.push(await new Promise((res) => cnv.toBlob(res, "image/png")));
+  }
   pdf.destroy();
-  return { blob, pages };
+  return { blobs, pages };
+}
+
+async function pdfToBlob(file) {
+  const { blobs, pages } = await pdfToBlobs(file, 1);
+  return { blob: blobs[0], pages };
 }
 
 async function loadFile(file) {
   if (!file || busy) return;
+  if (state.project === "zine") return addZineFiles([file]);
   const isPDF = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
   if (!isPDF && !/^image\/(jpeg|png|webp)$/.test(file.type)) {
     setStatus("formato no soportado: usa JPG, PNG, WebP o PDF");
@@ -704,8 +757,8 @@ async function loadFile(file) {
     url,
     (img) => {
       URL.revokeObjectURL(url);
-      srcImg = img;
-      srcInfo = { name: file.name + note, w: img.width, h: img.height };
+      posterImg = img;
+      posterInfo = { name: file.name + note, w: img.width, h: img.height };
       syncUI();
       schedule(STAGE.REBUILD);
     },
@@ -818,7 +871,7 @@ function fillCompositePage(page, rect, layers) {
 function newPDF() {
   const { jsPDF } = window.jspdf;
   return new jsPDF({
-    orientation: state.orientation === "portrait" ? "p" : "l",
+    orientation: pageOrientation() === "portrait" ? "p" : "l",
     unit: "mm",
     format: state.format.toLowerCase(),
     compress: true,
@@ -828,8 +881,25 @@ function newPDF() {
 // PNG (lossless) page image, full page size
 function addPageImage(doc, page, first) {
   const [mw, mh] = pageMM();
-  if (!first) doc.addPage(state.format.toLowerCase(), state.orientation === "portrait" ? "p" : "l");
+  if (!first) doc.addPage(state.format.toLowerCase(), pageOrientation() === "portrait" ? "p" : "l");
   doc.addImage(page.g.elt.toDataURL("image/png"), "PNG", 0, 0, mw, mh, undefined, "FAST");
+}
+
+// Name every page: Acrobat shows page labels in the page-number box and the
+// thumbnails ("1 · Azul"), and the same names go into the bookmarks for
+// viewers that ignore labels (e.g. macOS Preview). Metadata only: nothing is
+// printed on the masters. jsPDF has no API for /PageLabels, so it is written
+// into the document catalog; strings are UTF-16BE so accents survive.
+function labelPDFPages(doc, labels) {
+  const pdfString = (str) =>
+    "<FEFF" +
+    Array.from({ length: str.length }, (_, i) => str.charCodeAt(i).toString(16).padStart(4, "0")).join("").toUpperCase() +
+    ">";
+  doc.internal.events.subscribe("putCatalog", () => {
+    const nums = labels.map((label, i) => `${i} << /P ${pdfString(label)} >>`).join(" ");
+    doc.internal.write(`/PageLabels << /Nums [${nums}] >>`);
+  });
+  if (doc.outline) labels.forEach((label, i) => doc.outline.add(null, label, { pageNumber: i + 1 }));
 }
 
 // color: layers in ink colour (else greyscale masters). composite: add the overprint page first.
@@ -837,6 +907,7 @@ async function exportPDF(color, composite = color) {
   const out = await renderExportLayers();
   const page = createPage(out.PW, out.PH);
   const doc = newPDF();
+  const labels = [];
   try {
     let first = true;
     if (composite) {
@@ -844,6 +915,7 @@ async function exportPDF(color, composite = color) {
       await nextFrame();
       fillCompositePage(page, out.rect, out.layers);
       addPageImage(doc, page, first);
+      labels.push("Composición");
       first = false;
     }
     for (let k = 0; k < out.layers.length; k++) {
@@ -852,12 +924,14 @@ async function exportPDF(color, composite = color) {
       const layer = out.layers[k];
       fillLayerPage(page, out.rect, layer, color ? layer.ink.rgb : null);
       addPageImage(doc, page, first);
+      labels.push(`${k + 1} · ${layer.ink.name}`); // same order as the file name suffix
       first = false;
     }
   } finally {
     page.g.remove();
   }
-  const name = `riso_${color ? (composite ? "color" : "capas_color") : "bn"}_${state.format}_${inkSuffix(out.layers)}.pdf`;
+  labelPDFPages(doc, labels);
+  const name = `riso_${color ? (composite ? "color" : "capas_color") : "bn"}_${fileTag()}_${inkSuffix(out.layers)}.pdf`;
   doc.save(name);
   return name;
 }
@@ -873,7 +947,7 @@ async function exportPNGLayers(color = false) {
       fillLayerPage(page, out.rect, layer, color ? layer.ink.rgb : null);
       downloadBlob(
         await pagePNG(page),
-        `riso_${color ? "color_" : ""}${state.format}_${k + 1}-${layer.ink.slug}.png`,
+        `riso_${color ? "color_" : ""}${fileTag()}_${k + 1}-${layer.ink.slug}.png`,
       );
       await new Promise((res) => setTimeout(res, 350)); // let the browser start each download
     }
@@ -893,7 +967,7 @@ async function exportPNGColor() {
     fillCompositePage(page, out.rect, out.layers);
     setStatus("procesando… guardando png");
     await nextFrame();
-    const name = `riso_color_${state.format}_${inkSuffix(out.layers)}.png`;
+    const name = `riso_color_${fileTag()}_${inkSuffix(out.layers)}.png`;
     downloadBlob(await pagePNG(page), name);
     return name;
   } finally {
@@ -1002,7 +1076,9 @@ function bindUI() {
   const area = $("canvas-area");
   // Empty canvas: a click anywhere opens the file picker
   area.addEventListener("click", (e) => {
-    if (!srcImg && !busy && !e.target.closest(".zoom-controls, .history-controls")) $("file-input").click();
+    if (srcImg || busy || e.target.closest(".zoom-controls, .history-controls")) return;
+    if (state.project === "zine") openZinePicker();
+    else $("file-input").click();
   });
 
   // Undo / redo: ⌘Z / ⇧⌘Z (Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y elsewhere)
@@ -1033,7 +1109,8 @@ function bindUI() {
   area.addEventListener("drop", (e) => {
     e.preventDefault();
     area.classList.remove("dragging");
-    loadFile(e.dataTransfer.files[0]);
+    if (state.project === "zine") addZineFiles(e.dataTransfer.files);
+    else loadFile(e.dataTransfer.files[0]);
   });
   // Don't let a file dropped elsewhere navigate away from the tool
   window.addEventListener("dragover", (e) => e.preventDefault());
@@ -1132,6 +1209,15 @@ function bindUI() {
     schedule(STAGE.SCREEN, DEBOUNCE_MS);
   });
 
+  // Project: poster | 8-page zine
+  onPick("toggle-project", (v) => {
+    if (v === state.project) return;
+    state.project = v;
+    syncUI();
+    schedule(STAGE.REBUILD);
+  });
+  bindZineUI();
+
   // Format
   onPick("toggle-format", (v) => {
     if (v === state.format) return;
@@ -1180,10 +1266,20 @@ function editScreen(mutate, delay = 0) {
 }
 
 function syncUI() {
+  syncSource();
+  const zine = state.project === "zine";
+  setActive("toggle-project", state.project);
+  $("panel-poster").hidden = zine;
+  $("panel-zine").hidden = !zine;
+  if (zine) renderZine();
+  $("toggle-orientation").classList.toggle("is-locked", zine);
+  $("toggle-orientation").title = zine ? "el fanzine se imprime en una hoja horizontal" : "";
+  $("meta-page").textContent = zine ? zinePageMeta() : "";
+
   setActive("toggle-workshop", state.workshop);
   setActive("group-mode", state.mode);
   setActive("toggle-format", state.format);
-  setActive("toggle-orientation", state.orientation);
+  setActive("toggle-orientation", pageOrientation());
   setActive("toggle-fit", state.fit);
 
   $("canvas-area").classList.toggle("empty", !srcImg);
@@ -1261,24 +1357,25 @@ function syncScreenUI() {
   const L = scopeLayer();
   const cfg = L ? screenOf(L) : state.screen;
 
-  // Scope toggle: global | 1 | 2* ...  (* = layer has its own screen)
-  const opts = [["global", "Global"]].concat(
-    state.layers.map((x, i) => [String(x.uid), `${i + 1}${x.screen ? "*" : ""}`]),
-  );
-  $("toggle-scope").innerHTML = opts
-    .map(
-      ([v, label]) => `<button class="seg-btn" type="button" data-value="${v}">${label}</button>`,
-    )
-    .join("");
+  // Scope toggle: Global | ● 1 | ● 2* ...  (dot = the layer's ink, * = own screen)
+  $("toggle-scope").innerHTML =
+    `<button class="seg-btn" type="button" data-value="global">Global</button>` +
+    state.layers
+      .map((x, i) => {
+        const ink = inkBySlug(x.ink);
+        return `<button class="seg-btn" type="button" data-value="${x.uid}" title="capa ${i + 1} · ${ink.name}"><span class="seg-dot" style="background:${ink.hex}"></span>${i + 1}${x.screen ? "*" : ""}</button>`;
+      })
+      .join("");
   setActive("toggle-scope", state.scope);
 
   $("btn-follow").hidden = !L;
   if (L) {
     $("btn-follow").classList.toggle("on", !L.screen);
     const idx = state.layers.indexOf(L) + 1;
+    const name = `capa ${idx} · ${inkBySlug(L.ink).name}`;
     $("meta-scope").textContent = L.screen
-      ? `capa ${idx}: trama propia`
-      : `capa ${idx}: sigue la trama global · al cambiar algo pasa a tener trama propia`;
+      ? `${name}: trama propia`
+      : `${name}: sigue la trama global · al cambiar algo pasa a tener trama propia`;
   } else {
     $("meta-scope").textContent = "aplica a todas las capas sin trama propia (*)";
   }
