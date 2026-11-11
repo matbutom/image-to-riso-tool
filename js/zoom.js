@@ -1,7 +1,8 @@
 /*
   zoom.js — preview zoom & pan. Purely visual (CSS transform on the p5 canvas):
   it never touches the pipeline or the exports.
-  Wheel / pinch = zoom at cursor · drag = pan · double click = fit · +/-/0 keys.
+  Wheel / trackpad pinch / two-finger pinch = zoom at cursor · drag = pan ·
+  double click = fit · +/-/0 keys.
 */
 (function () {
   const MIN = 1;
@@ -79,21 +80,49 @@
     { passive: false },
   );
 
+  // One pointer pans (when zoomed); two touch points pinch-zoom around their centre
   let drag = null;
+  let pinch = null;
+  const touches = new Map(); // pointerId → { x, y }
+  const onControls = (e) => e.target.closest(".zoom-controls, .history-controls, .sheet-nav");
+
+  function pinchState() {
+    const [a, b] = [...touches.values()];
+    return { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
+  }
+
   area.addEventListener("pointerdown", (e) => {
-    if (z <= 1 || e.button !== 0 || e.target.closest(".zoom-controls, .history-controls, .sheet-nav")) return;
+    if (onControls(e)) return;
+    if (e.pointerType === "touch") {
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size === 2) {
+        drag = null;
+        pinch = { ...pinchState(), z0: z };
+        area.classList.remove("panning");
+        return;
+      }
+    }
+    if (z <= 1 || e.button !== 0 || pinch) return;
     drag = { x: e.clientX, y: e.clientY, tx, ty };
     area.setPointerCapture(e.pointerId);
     area.classList.add("panning");
   });
   area.addEventListener("pointermove", (e) => {
+    if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch && touches.size === 2) {
+      const p = pinchState();
+      zoomTo(pinch.z0 * (p.d / pinch.d), p.cx, p.cy);
+      return;
+    }
     if (!drag) return;
     tx = drag.tx + e.clientX - drag.x;
     ty = drag.ty + e.clientY - drag.y;
     clampPan();
     apply();
   });
-  const endDrag = () => {
+  const endDrag = (e) => {
+    touches.delete(e.pointerId);
+    if (touches.size < 2) pinch = null;
     drag = null;
     area.classList.remove("panning");
   };

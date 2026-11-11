@@ -18,6 +18,8 @@ Herramienta web estática para separar una imagen (JPG, PNG o WebP) en capas de 
 
   Solo se exportan las capas visibles. La densidad simula la intensidad de la tinta en el preview y en el PDF color. Los másters b/n y PNG no la aplican: esa intensidad se regula en la máquina.
 
+En teléfono la interfaz muestra un paso a la vez con una barra de pestañas abajo y la preview arriba (zoom con dos dedos); en tablet el panel queda al costado. En pantallas táctiles los controles son más grandes.
+
 Usa [p5.js](https://p5js.org) 1.9, [p5.riso](https://github.com/antiboredom/p5.riso) (copia local en `js/vendor/`) y [jsPDF](https://github.com/parallax/jsPDF). No necesita build ni backend.
 
 ## Estructura
@@ -33,7 +35,8 @@ js/sketch.js         preview, tramas, exportación e interfaz
 js/zine.js           fanzine de 8 páginas: imposición, orden de páginas y guías
 js/flip.js           flipbook: video → frames, hojas, marcas de corte y números
 js/recolor.js        cuentagotas: reemplazar un color por una tinta o el papel
-js/zoom.js           zoom y desplazamiento de la preview
+js/zoom.js           zoom y desplazamiento de la preview (rueda, trackpad o dos dedos)
+js/mobile.js         teléfono: un paso a la vez con barra de pestañas
 js/vendor/p5.riso.js
 ```
 

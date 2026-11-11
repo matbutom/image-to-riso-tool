@@ -2,7 +2,7 @@
 <html lang="es">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>image to riso</title>
     <meta
       name="description"
@@ -23,7 +23,7 @@
     />
     <!-- Material Symbols, only the icons used here -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,300,0,0&icon_names=add,arrow_forward,chevron_left,chevron_right,close,colorize,crop_landscape,crop_portrait,download,expand_more,movie,redo,remove,undo,upload_file,visibility,visibility_off&display=block"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,300,0,0&icon_names=add,arrow_forward,chevron_left,chevron_right,close,colorize,crop_landscape,crop_portrait,description,download,expand_more,grain,image,movie,palette,redo,remove,undo,upload_file,visibility,visibility_off&display=block"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="css/style.css" />
@@ -44,11 +44,12 @@
             </span>
           </div>
           <p class="tagline">separador de tintas para risografía</p>
+          <p class="status-mini" id="status-mini" aria-hidden="true"></p>
         </header>
 
         <div class="sidebar-body">
           <!-- 01 IMAGE -->
-          <details class="step" open>
+          <details class="step" data-step="1" open>
             <summary class="step-head">
               <span class="step-num">01</span>
               <span class="step-title">Imagen</span>
@@ -135,7 +136,7 @@
           </details>
 
           <!-- 02 INKS -->
-          <details class="step" open>
+          <details class="step" data-step="2" open>
             <summary class="step-head">
               <span class="step-num">02</span>
               <span class="step-title">Tintas</span>
@@ -181,7 +182,7 @@
           </details>
 
           <!-- 03 SCREENING -->
-          <details class="step" open>
+          <details class="step" data-step="3" open>
             <summary class="step-head">
               <span class="step-num">03</span>
               <span class="step-title">Trama</span>
@@ -254,7 +255,7 @@
           </details>
 
           <!-- 04 PAGE -->
-          <details class="step" open>
+          <details class="step" data-step="4" open>
             <summary class="step-head">
               <span class="step-num">04</span>
               <span class="step-title">Página</span>
@@ -324,7 +325,7 @@
         </div>
 
         <!-- 05 EXPORT: always visible -->
-        <footer class="sidebar-foot">
+        <footer class="sidebar-foot" data-step="5">
           <div class="step-head step-head-static">
             <span class="step-num">05</span>
             <span class="step-title">Exportar</span>
@@ -357,6 +358,15 @@
           </div>
           <p class="status" id="meta-status">carga una imagen para empezar</p>
         </footer>
+
+        <!-- phone: one step at a time (mobile.js) -->
+        <nav class="step-tabs" id="step-tabs" aria-label="pasos">
+          <button type="button" data-step="1"><span class="ms" aria-hidden="true">image</span><span>Imagen</span></button>
+          <button type="button" data-step="2"><span class="ms" aria-hidden="true">palette</span><span>Tintas</span></button>
+          <button type="button" data-step="3"><span class="ms" aria-hidden="true">grain</span><span>Trama</span></button>
+          <button type="button" data-step="4"><span class="ms" aria-hidden="true">description</span><span>Página</span></button>
+          <button type="button" data-step="5"><span class="ms" aria-hidden="true">download</span><span>Exportar</span></button>
+        </nav>
       </aside>
 
       <main class="canvas-area" id="canvas-area">
@@ -405,5 +415,6 @@
     <script src="js/flip.js"></script>
     <script src="js/recolor.js"></script>
     <script src="js/zoom.js"></script>
+    <script src="js/mobile.js"></script>
   </body>
 </html>
