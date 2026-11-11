@@ -23,7 +23,7 @@
     />
     <!-- Material Symbols, only the icons used here -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,300,0,0&icon_names=add,close,crop_landscape,crop_portrait,download,expand_more,redo,remove,undo,upload_file,visibility,visibility_off&display=block"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,300,0,0&icon_names=add,arrow_forward,chevron_left,chevron_right,close,colorize,crop_landscape,crop_portrait,download,expand_more,movie,redo,remove,undo,upload_file,visibility,visibility_off&display=block"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="css/style.css" />
@@ -59,7 +59,8 @@
                 <span class="row-label">Proyecto</span>
                 <div class="seg" id="toggle-project">
                   <button class="seg-btn" type="button" data-value="poster">Póster</button>
-                  <button class="seg-btn" type="button" data-value="zine">Fanzine 8 pág.</button>
+                  <button class="seg-btn" type="button" data-value="zine" title="Fanzine de 8 páginas en una hoja">Fanzine</button>
+                  <button class="seg-btn" type="button" data-value="flip" title="Flipbook a partir de un video">Flipbook</button>
                 </div>
               </div>
 
@@ -93,6 +94,42 @@
                 <p class="meta" id="meta-zine"></p>
                 <span class="row-label tray-label">Sin asignar</span>
                 <div class="zine-tray" id="zine-tray" aria-label="imágenes sin asignar"></div>
+              </div>
+
+              <!-- flipbook: video → frames (flip.js) -->
+              <div class="project-panel" id="panel-flip" hidden>
+                <button class="btn btn-primary" id="btn-flip-video" type="button">
+                  <span class="ms" aria-hidden="true">movie</span>Subir video
+                </button>
+                <input type="file" id="flip-input" accept="video/*,.mp4,.webm,.mov,.m4v" hidden />
+                <video class="flip-video" id="flip-video" muted playsinline controls preload="auto" hidden></video>
+                <p class="meta" id="meta-video">sin video · también puedes arrastrarlo al lienzo</p>
+                <div id="flip-range" hidden>
+                  <div class="slider-row">
+                    <div class="slider-head">
+                      <span class="row-label">Inicio</span>
+                      <span class="slider-value"><span id="val-flip-start"></span>
+                        <button class="link-btn" id="btn-flip-mark-start" type="button" title="usar la posición actual del video">marcar</button></span>
+                    </div>
+                    <input type="range" id="slider-flip-start" min="0" max="1" step="0.01" />
+                  </div>
+                  <div class="slider-row">
+                    <div class="slider-head">
+                      <span class="row-label">Fin</span>
+                      <span class="slider-value"><span id="val-flip-end"></span>
+                        <button class="link-btn" id="btn-flip-mark-end" type="button" title="usar la posición actual del video">marcar</button></span>
+                    </div>
+                    <input type="range" id="slider-flip-end" min="0" max="1" step="0.01" />
+                  </div>
+                  <div class="slider-row">
+                    <div class="slider-head">
+                      <span class="row-label">Frames</span>
+                      <span class="slider-value" id="val-flip-count"></span>
+                    </div>
+                    <input type="range" id="slider-flip-count" min="2" max="240" step="1" />
+                  </div>
+                  <button class="btn btn-flip-extract" id="btn-flip-extract" type="button"><span class="ms" aria-hidden="true">movie</span>Extraer frames</button>
+                </div>
               </div>
             </div>
           </details>
@@ -131,6 +168,15 @@
               <button class="btn btn-ghost" id="btn-add-layer" type="button">
                 <span class="ms" aria-hidden="true">add</span>Añadir capa
               </button>
+
+              <!-- eyedropper: picked colour → one ink or the paper (recolor.js) -->
+              <div class="sub-head">
+                <span class="row-label">Reemplazar colores</span>
+              </div>
+              <button class="btn btn-small" id="btn-eyedropper" type="button" title="toma un color de la imagen y mándalo a una tinta">
+                <span class="ms" aria-hidden="true">colorize</span>Cuentagotas
+              </button>
+              <div id="color-rules"></div>
             </div>
           </details>
 
@@ -234,12 +280,37 @@
                 </div>
               </div>
               <p class="meta" id="meta-page"></p>
-              <div class="row">
+              <div class="row" id="row-fit">
                 <span class="row-label">Ajuste</span>
                 <div class="seg" id="toggle-fit">
                   <button class="seg-btn" type="button" data-value="contain" title="Muestra la imagen completa">Contener</button>
                   <button class="seg-btn" type="button" data-value="cover" title="Cubre el área imprimible y recorta lo que sobra">Rellenar</button>
                 </div>
+              </div>
+
+              <!-- flipbook sheets (flip.js) -->
+              <div id="flip-layout" hidden>
+                <div class="row">
+                  <span class="row-label">Frame</span>
+                  <div class="seg" id="toggle-flip-size">
+                    <button class="seg-btn" type="button" data-value="s" title="40 mm de ancho">Chico</button>
+                    <button class="seg-btn" type="button" data-value="m" title="60 mm de ancho">Mediano</button>
+                    <button class="seg-btn" type="button" data-value="l" title="90 mm de ancho">Grande</button>
+                  </div>
+                </div>
+                <div class="slider-row">
+                  <div class="slider-head">
+                    <span class="row-label">Encuadernar</span>
+                    <span class="slider-value" id="val-flip-binding"></span>
+                  </div>
+                  <input type="range" id="slider-flip-binding" min="0" max="25" step="1" />
+                </div>
+                <p class="meta" id="meta-flip-layout"></p>
+                <div class="field">
+                  <span class="row-label">Marcas y números en</span>
+                  <div class="seg" id="toggle-flip-marks"></div>
+                </div>
+                <p class="meta" id="meta-flip-marks"></p>
               </div>
             </div>
           </details>
@@ -283,6 +354,18 @@
 
       <main class="canvas-area" id="canvas-area">
         <div class="canvas-wrapper" id="canvas-wrapper"></div>
+        <div class="loupe" id="loupe" hidden aria-hidden="true">
+          <span class="loupe-swatch"></span><span class="loupe-hex"></span>
+        </div>
+        <div class="sheet-nav" id="sheet-nav" role="group" aria-label="hojas" hidden>
+          <button class="zoom-btn" id="sheet-prev" type="button" aria-label="hoja anterior" title="Hoja anterior (←)">
+            <span class="ms" aria-hidden="true">chevron_left</span>
+          </button>
+          <span class="sheet-label" id="sheet-label"></span>
+          <button class="zoom-btn" id="sheet-next" type="button" aria-label="hoja siguiente" title="Hoja siguiente (→)">
+            <span class="ms" aria-hidden="true">chevron_right</span>
+          </button>
+        </div>
         <div class="history-controls" role="group" aria-label="historial">
           <button class="zoom-btn" id="btn-undo" type="button" aria-label="deshacer" disabled>
             <span class="ms" aria-hidden="true">undo</span>
@@ -312,6 +395,8 @@
     <script src="js/separation.js"></script>
     <script src="js/sketch.js"></script>
     <script src="js/zine.js"></script>
+    <script src="js/flip.js"></script>
+    <script src="js/recolor.js"></script>
     <script src="js/zoom.js"></script>
   </body>
 </html>

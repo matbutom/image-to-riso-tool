@@ -30,8 +30,10 @@ const STAGE = { COMPOSITE: 0, PAINT: 1, SCREEN: 2, REBUILD: 3 };
 // ── STATE ───────────────────────────────────────
 
 const state = {
-  project: "poster", // poster | zine (8-page fanzine on one sheet, see zine.js)
+  project: "poster", // poster | zine (8-page fanzine, zine.js) | flip (flipbook from a video, flip.js)
   zine: { pages: [null, null, null, null, null, null, null, null], tray: [] }, // image ids
+  flip: { size: "m", binding: 10, marks: "auto" }, // frame size s|m|l, binding strip mm, marks layer uid
+  colorRules: [], // eyedropper replacements, see recolor.js: { id, rgb, target: uid | "paper", tol }
   workshop: "aoi",
   mode: "auto", // auto | cmyk | rgb
   format: "A4",
@@ -147,18 +149,18 @@ function drawEmptyState() {
   fill("#3255A4");
   textStyle(BOLD);
   textSize(Math.round(22 * q));
-  const zine = state.project === "zine";
-  text(zine ? "Arrastra las imágenes del fanzine" : "Arrastra una imagen o un PDF", cx, cy + 18 * q);
+  const msg = {
+    poster: ["Arrastra una imagen o un PDF", "o haz clic para elegir un archivo · JPG, PNG, WebP o PDF"],
+    zine: ["Arrastra las imágenes del fanzine", "o haz clic para elegir varias · un PDF se reparte en páginas"],
+    flip: flipVideo.el
+      ? ["Elige el tramo y extrae los frames", "en 01 Imagen: marca inicio y fin, cuántos frames y Extraer"]
+      : ["Arrastra un video", "o haz clic para elegir uno · MP4, WebM o MOV"],
+  }[state.project];
+  text(msg[0], cx, cy + 18 * q);
   textStyle(NORMAL);
   textSize(Math.round(13 * q));
   fill("#7088BF");
-  text(
-    zine
-      ? "o haz clic para elegir varias · un PDF se reparte en páginas"
-      : "o haz clic para elegir un archivo · JPG, PNG, WebP o PDF",
-    cx,
-    cy + 46 * q,
-  );
+  text(msg[1], cx, cy + 46 * q);
 }
 
 // Preview-only guide: never part of an export
@@ -187,6 +189,10 @@ function syncSource() {
     const sheet = ensureZineSheet();
     srcImg = sheet ? sheet.img : null;
     srcInfo = sheet ? { name: `fanzine · ${zineAssignedCount()} de ${ZINE_PAGES} páginas`, w: srcImg.width, h: srcImg.height } : null;
+  } else if (state.project === "flip") {
+    const sheet = ensureFlipSheet();
+    srcImg = sheet ? sheet.img : null;
+    srcInfo = sheet ? { name: `flipbook · hoja ${flipSheetIndex + 1} de ${flipSheetCount()}`, w: srcImg.width, h: srcImg.height } : null;
   } else {
     srcImg = posterImg;
     srcInfo = posterInfo;
@@ -202,7 +208,9 @@ function zinePageMeta() {
 
 // Format tag for exported file names
 function fileTag() {
-  return state.project === "zine" ? `${state.format}_fanzine` : state.format;
+  if (state.project === "zine") return `${state.format}_fanzine`;
+  if (state.project === "flip") return `${state.format}_flipbook`;
+  return state.format;
 }
 
 function pageMM() {
@@ -351,11 +359,11 @@ function rebuildRisoLayers() {
 
 // Draw the crop of the source on white (transparent pixels read as paper) at w x h.
 // Returns a p5.Graphics: the caller must .remove() it.
-function renderSource(w, h, crop) {
+function renderSource(w, h, crop, img = srcImg) {
   const g = createGraphics(w, h);
   g.drawingContext.imageSmoothingQuality = "high";
   g.background(255);
-  g.image(srcImg, 0, 0, w, h, crop.x, crop.y, crop.w, crop.h);
+  g.image(img, 0, 0, w, h, crop.x, crop.y, crop.w, crop.h);
   return g;
 }
 
@@ -390,20 +398,22 @@ function computeInkMaps(img, wanted = () => true) {
   img.loadPixels();
   const px = img.pixels;
 
+  let maps;
   if (state.mode === "auto") {
     const inks = state.layers.map((L) => inkBySlug(L.ink).rgb);
-    return RisoSep.autoInkMaps(px, n, inks, wanted);
+    maps = RisoSep.autoInkMaps(px, n, inks, wanted);
+  } else {
+    const useK = state.layers.some((L) => L.cmyk === 3);
+    maps = state.layers.map((L, idx) => {
+      if (!wanted(idx)) return null;
+      if (state.mode === "cmyk") return RisoSep.cmykInkMap(px, n, L.cmyk, useK);
+      // rgb: ink wherever the layer's channel is missing
+      const ink = new Uint8ClampedArray(n);
+      for (let i = 0, p = L.rgb; i < n; i++, p += 4) ink[i] = 255 - px[p];
+      return ink;
+    });
   }
-
-  const useK = state.layers.some((L) => L.cmyk === 3);
-  return state.layers.map((L, idx) => {
-    if (!wanted(idx)) return null;
-    if (state.mode === "cmyk") return RisoSep.cmykInkMap(px, n, L.cmyk, useK);
-    // rgb: ink wherever the layer's channel is missing
-    const ink = new Uint8ClampedArray(n);
-    for (let i = 0, p = L.rgb; i < n; i++, p += 4) ink[i] = 255 - px[p];
-    return ink;
-  });
+  return applyColorRules(maps, px, n); // eyedropper replacements (recolor.js)
 }
 
 // ── SCREENING ───────────────────────────────────
@@ -559,19 +569,26 @@ function runPipeline(stage) {
   if (srcImg && work) {
     if (stage >= STAGE.SCREEN) {
       const { img, pxScale, ow, oh, outScale } = work;
+      const marksIdx = state.project === "flip" ? flipMarksLayer() : -1;
       screenedImgs = state.layers.map((L, i) => {
         const cfg = screenOf(L);
+        let gray;
+        let gw = img.width;
+        let gh = img.height;
         if (cfg.style === "halftone") {
-          return grayToImage(
-            screenLayer(inkMaps[i], ow, oh, cfg, L.angle, outScale, img.width, img.height),
-            ow,
-            oh,
-          );
+          gray = screenLayer(inkMaps[i], ow, oh, cfg, L.angle, outScale, img.width, img.height);
+          gw = ow;
+          gh = oh;
+        } else {
+          gray = screenLayer(inkMaps[i], img.width, img.height, cfg, L.angle, pxScale);
+          if (cfg.style === "dither") {
+            gray = upsampleNearest(gray, img.width, img.height, ow, oh);
+            gw = ow;
+            gh = oh;
+          }
         }
-        const gray = screenLayer(inkMaps[i], img.width, img.height, cfg, L.angle, pxScale);
-        return cfg.style === "dither"
-          ? grayToImage(upsampleNearest(gray, img.width, img.height, ow, oh), ow, oh)
-          : grayToImage(gray, img.width, img.height);
+        if (i === marksIdx) overlayFlipMarks(gray, gw, gh, flipSheetIndex);
+        return grayToImage(gray, gw, gh);
       });
     }
     if (stage >= STAGE.PAINT) {
@@ -732,6 +749,7 @@ async function pdfToBlob(file) {
 async function loadFile(file) {
   if (!file || busy) return;
   if (state.project === "zine") return addZineFiles([file]);
+  if (state.project === "flip") return loadFlipVideo(file);
   const isPDF = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
   if (!isPDF && !/^image\/(jpeg|png|webp)$/.test(file.type)) {
     setStatus("formato no soportado: usa JPG, PNG, WebP o PDF");
@@ -779,30 +797,45 @@ function inkSuffix(list) {
   return list.map((item, k) => `${k + 1}-${item.ink.slug}`).join("_");
 }
 
-// Separate + screen the visible layers at 300 dpi
-async function renderExportLayers() {
+// What gets exported: one source, or one per flipbook sheet (composed on demand)
+function exportSheetCount() {
+  return state.project === "flip" ? flipSheetCount() : 1;
+}
+
+function sheetLabel(s, total) {
+  return total > 1 ? ` · hoja ${s + 1}/${total}` : "";
+}
+
+// After the ink in file names, so files sort by drum: …_1-azul_hoja01.png
+function sheetFile(s, total) {
+  return total > 1 ? `_hoja${String(s + 1).padStart(2, "0")}` : "";
+}
+
+// Separate + screen the visible layers of one sheet at 300 dpi
+async function renderExportLayers(sheet = 0) {
+  const total = exportSheetCount();
+  const img = state.project === "flip" ? composeFlipSheet(sheet) : srcImg;
   const [PW, PH] = exportSize();
-  const { rect, crop } = placeImage(printableRect(PW, PH), srcImg.width, srcImg.height);
+  const { rect, crop } = placeImage(printableRect(PW, PH), img.width, img.height);
   const pxScale = PW / previewSize()[0]; // scales halftone frequency / dither grain to match preview
   const visible = visibleLayers();
 
-  setStatus("procesando… separando a 300 dpi");
+  setStatus(`procesando…${sheetLabel(sheet, total)} separando a 300 dpi`);
   await nextFrame();
-  const src = renderSource(rect.w, rect.h, crop);
+  const src = renderSource(rect.w, rect.h, crop, img);
   const wantedIdx = new Set(visible.map((v) => v.i));
   const maps = computeInkMaps(src, (i) => wantedIdx.has(i));
   src.remove();
 
+  const marksIdx = state.project === "flip" ? flipMarksLayer() : -1;
   const layers = [];
   for (let k = 0; k < visible.length; k++) {
     const { L, i } = visible[k];
-    setStatus(`procesando… trama capa ${k + 1}/${visible.length}`);
+    setStatus(`procesando…${sheetLabel(sheet, total)} trama capa ${k + 1}/${visible.length}`);
     await nextFrame();
-    layers.push({
-      ink: inkBySlug(L.ink),
-      density: L.density,
-      gray: screenLayer(maps[i], rect.w, rect.h, screenOf(L), L.angle, pxScale),
-    });
+    const gray = screenLayer(maps[i], rect.w, rect.h, screenOf(L), L.angle, pxScale);
+    if (i === marksIdx) overlayFlipMarks(gray, rect.w, rect.h, sheet); // cut marks + numbers, solid ink
+    layers.push({ ink: inkBySlug(L.ink), density: L.density, gray });
     maps[i] = null;
   }
   return { PW, PH, rect, layers };
@@ -879,10 +912,10 @@ function newPDF() {
 }
 
 // PNG (lossless) page image, full page size
-function addPageImage(doc, page, first) {
+function addPageImage(doc, url, first) {
   const [mw, mh] = pageMM();
   if (!first) doc.addPage(state.format.toLowerCase(), pageOrientation() === "portrait" ? "p" : "l");
-  doc.addImage(page.g.elt.toDataURL("image/png"), "PNG", 0, 0, mw, mh, undefined, "FAST");
+  doc.addImage(url, "PNG", 0, 0, mw, mh, undefined, "FAST");
 }
 
 // Name every page: Acrobat shows page labels in the page-number box and the
@@ -903,76 +936,98 @@ function labelPDFPages(doc, labels) {
 }
 
 // color: layers in ink colour (else greyscale masters). composite: add the overprint page first.
+// Several sheets (flipbook) are ordered by drum: every sheet of ink 1, then
+// every sheet of ink 2… so each drum goes through the riso once.
 async function exportPDF(color, composite = color) {
-  const out = await renderExportLayers();
-  const page = createPage(out.PW, out.PH);
-  const doc = newPDF();
-  const labels = [];
+  const total = exportSheetCount();
+  const [PW, PH] = exportSize();
+  const page = createPage(PW, PH);
+  const pages = []; // { group: -1 composite | layer k, sheet, label, url }
+  let inks = [];
   try {
-    let first = true;
-    if (composite) {
-      setStatus("procesando… composición");
-      await nextFrame();
-      fillCompositePage(page, out.rect, out.layers);
-      addPageImage(doc, page, first);
-      labels.push("Composición");
-      first = false;
-    }
-    for (let k = 0; k < out.layers.length; k++) {
-      setStatus(`procesando… página capa ${k + 1}/${out.layers.length}`);
-      await nextFrame();
-      const layer = out.layers[k];
-      fillLayerPage(page, out.rect, layer, color ? layer.ink.rgb : null);
-      addPageImage(doc, page, first);
-      labels.push(`${k + 1} · ${layer.ink.name}`); // same order as the file name suffix
-      first = false;
+    for (let s = 0; s < total; s++) {
+      const out = await renderExportLayers(s);
+      inks = out.layers;
+      if (composite) {
+        setStatus(`procesando…${sheetLabel(s, total)} composición`);
+        await nextFrame();
+        fillCompositePage(page, out.rect, out.layers);
+        pages.push({ group: -1, sheet: s, label: `Composición${sheetLabel(s, total)}`, url: page.g.elt.toDataURL("image/png") });
+      }
+      for (let k = 0; k < out.layers.length; k++) {
+        setStatus(`procesando…${sheetLabel(s, total)} página capa ${k + 1}/${out.layers.length}`);
+        await nextFrame();
+        const layer = out.layers[k];
+        fillLayerPage(page, out.rect, layer, color ? layer.ink.rgb : null);
+        pages.push({
+          group: k,
+          sheet: s,
+          label: `${k + 1} · ${layer.ink.name}${sheetLabel(s, total)}`, // same order as the file name suffix
+          url: page.g.elt.toDataURL("image/png"),
+        });
+      }
     }
   } finally {
     page.g.remove();
   }
-  labelPDFPages(doc, labels);
-  const name = `riso_${color ? (composite ? "color" : "capas_color") : "bn"}_${fileTag()}_${inkSuffix(out.layers)}.pdf`;
+  pages.sort((a, b) => a.group - b.group || a.sheet - b.sheet);
+  setStatus("procesando… armando PDF");
+  await nextFrame();
+  const doc = newPDF();
+  pages.forEach((p, n) => addPageImage(doc, p.url, n === 0));
+  labelPDFPages(doc, pages.map((p) => p.label));
+  const name = `riso_${color ? (composite ? "color" : "capas_color") : "bn"}_${fileTag()}_${inkSuffix(inks)}.pdf`;
   doc.save(name);
   return name;
 }
 
 async function exportPNGLayers(color = false) {
-  const out = await renderExportLayers();
-  const page = createPage(out.PW, out.PH);
+  const total = exportSheetCount();
+  const [PW, PH] = exportSize();
+  const page = createPage(PW, PH);
+  let files = 0;
   try {
-    for (let k = 0; k < out.layers.length; k++) {
-      setStatus(`procesando… png capa ${k + 1}/${out.layers.length}`);
-      await nextFrame();
-      const layer = out.layers[k];
-      fillLayerPage(page, out.rect, layer, color ? layer.ink.rgb : null);
-      downloadBlob(
-        await pagePNG(page),
-        `riso_${color ? "color_" : ""}${fileTag()}_${k + 1}-${layer.ink.slug}.png`,
-      );
-      await new Promise((res) => setTimeout(res, 350)); // let the browser start each download
+    for (let s = 0; s < total; s++) {
+      const out = await renderExportLayers(s);
+      for (let k = 0; k < out.layers.length; k++) {
+        setStatus(`procesando…${sheetLabel(s, total)} png capa ${k + 1}/${out.layers.length}`);
+        await nextFrame();
+        const layer = out.layers[k];
+        fillLayerPage(page, out.rect, layer, color ? layer.ink.rgb : null);
+        downloadBlob(
+          await pagePNG(page),
+          `riso_${color ? "color_" : ""}${fileTag()}_${k + 1}-${layer.ink.slug}${sheetFile(s, total)}.png`,
+        );
+        files++;
+        await new Promise((res) => setTimeout(res, 350)); // let the browser start each download
+      }
     }
   } finally {
     page.g.remove();
   }
-  return `${out.layers.length} png`;
+  return `${files} png`;
 }
 
-// One 300 dpi PNG of the overprinted inks, as the riso would print them
+// One 300 dpi PNG per sheet of the overprinted inks, as the riso would print them
 async function exportPNGColor() {
-  const out = await renderExportLayers();
-  const page = createPage(out.PW, out.PH);
+  const total = exportSheetCount();
+  const [PW, PH] = exportSize();
+  const page = createPage(PW, PH);
+  let name = "";
   try {
-    setStatus("procesando… composición");
-    await nextFrame();
-    fillCompositePage(page, out.rect, out.layers);
-    setStatus("procesando… guardando png");
-    await nextFrame();
-    const name = `riso_color_${fileTag()}_${inkSuffix(out.layers)}.png`;
-    downloadBlob(await pagePNG(page), name);
-    return name;
+    for (let s = 0; s < total; s++) {
+      const out = await renderExportLayers(s);
+      setStatus(`procesando…${sheetLabel(s, total)} composición`);
+      await nextFrame();
+      fillCompositePage(page, out.rect, out.layers);
+      name = `riso_color_${fileTag()}_${inkSuffix(out.layers)}${sheetFile(s, total)}.png`;
+      downloadBlob(await pagePNG(page), name);
+      if (total > 1) await new Promise((res) => setTimeout(res, 350));
+    }
   } finally {
     page.g.remove();
   }
+  return total > 1 ? `${total} png` : name;
 }
 
 // Page buffer → PNG tagged with its print resolution
@@ -1076,8 +1131,9 @@ function bindUI() {
   const area = $("canvas-area");
   // Empty canvas: a click anywhere opens the file picker
   area.addEventListener("click", (e) => {
-    if (srcImg || busy || e.target.closest(".zoom-controls, .history-controls")) return;
+    if (srcImg || busy || e.target.closest(".zoom-controls, .history-controls, .sheet-nav")) return;
     if (state.project === "zine") openZinePicker();
+    else if (state.project === "flip") $("flip-input").click();
     else $("file-input").click();
   });
 
@@ -1110,6 +1166,7 @@ function bindUI() {
     e.preventDefault();
     area.classList.remove("dragging");
     if (state.project === "zine") addZineFiles(e.dataTransfer.files);
+    else if (state.project === "flip") loadFlipVideo(e.dataTransfer.files[0]);
     else loadFile(e.dataTransfer.files[0]);
   });
   // Don't let a file dropped elsewhere navigate away from the tool
@@ -1217,6 +1274,8 @@ function bindUI() {
     schedule(STAGE.REBUILD);
   });
   bindZineUI();
+  bindFlipUI();
+  bindRecolorUI();
 
   // Format
   onPick("toggle-format", (v) => {
@@ -1268,10 +1327,16 @@ function editScreen(mutate, delay = 0) {
 function syncUI() {
   syncSource();
   const zine = state.project === "zine";
+  const flip = state.project === "flip";
   setActive("toggle-project", state.project);
-  $("panel-poster").hidden = zine;
+  $("panel-poster").hidden = zine || flip;
   $("panel-zine").hidden = !zine;
+  $("panel-flip").hidden = !flip;
+  $("flip-layout").hidden = !flip;
+  $("row-fit").hidden = flip; // flipbook frames keep the video's proportion
   if (zine) renderZine();
+  if (flip) syncFlipUI();
+  else $("sheet-nav").hidden = true;
   $("toggle-orientation").classList.toggle("is-locked", zine);
   $("toggle-orientation").title = zine ? "el fanzine se imprime en una hoja horizontal" : "";
   $("meta-page").textContent = zine ? zinePageMeta() : "";
@@ -1295,6 +1360,7 @@ function syncUI() {
   $("meta-mode").textContent = modeMeta[state.mode];
 
   renderLayers();
+  renderColorRules();
   $("btn-add-layer").disabled = state.layers.length >= MAX_LAYERS;
   $("meta-layers").textContent = `${state.layers.length} de ${MAX_LAYERS} · ${currentWorkshop().name}`;
 

@@ -832,6 +832,138 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   color: var(--blue-60);
 }
 
+/* ── FLIPBOOK ────────────────────────────────── */
+
+.flip-video {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  background: #000;
+  border: 1px solid var(--blue);
+}
+
+.flip-video[hidden] {
+  display: none;
+}
+
+.link-btn {
+  margin-left: 6px;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--pink);
+  background: none;
+  border: none;
+  border-bottom: 1px solid currentColor;
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  color: var(--blue);
+}
+
+.btn-flip-extract {
+  margin-top: 14px;
+}
+
+#flip-layout {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--blue-30);
+}
+
+/* sheet navigator over the canvas */
+.sheet-nav {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  z-index: 2;
+  background: var(--paper);
+  border: 1px solid var(--blue);
+}
+
+.sheet-nav[hidden] {
+  display: none;
+}
+
+.sheet-label {
+  padding: 0 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  border-left: 1px solid var(--blue);
+  border-right: 1px solid var(--blue);
+  line-height: 30px;
+}
+
+/* ── EYEDROPPER / COLOR RULES ────────────────── */
+
+#btn-eyedropper.on {
+  background: var(--yellow);
+}
+
+.color-rule {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--blue);
+  background: var(--paper);
+}
+
+.rule-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch-square {
+  border-radius: 0;
+  mix-blend-mode: normal;
+  box-shadow: inset 0 0 0 1px var(--blue);
+}
+
+.rule-arrow {
+  font-size: 16px;
+  color: var(--blue-60);
+}
+
+.color-rule .slider-row {
+  margin-top: 6px;
+}
+
+/* picking mode on the canvas */
+.canvas-area.picking,
+.canvas-area.picking.zoomed {
+  cursor: crosshair;
+}
+
+.loupe {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--blue);
+  background: var(--paper);
+  border: 1px solid var(--blue);
+  box-shadow: 3px 3px 0 var(--pink);
+  pointer-events: none;
+}
+
+.loupe[hidden] {
+  display: none;
+}
+
+.loupe-swatch {
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--blue);
+}
+
 /* ── FOOTER: EXPORT ──────────────────────────── */
 
 .sidebar-foot {

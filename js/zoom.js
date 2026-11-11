@@ -81,7 +81,7 @@
 
   let drag = null;
   area.addEventListener("pointerdown", (e) => {
-    if (z <= 1 || e.button !== 0 || e.target.closest(".zoom-controls")) return;
+    if (z <= 1 || e.button !== 0 || e.target.closest(".zoom-controls, .history-controls, .sheet-nav")) return;
     drag = { x: e.clientX, y: e.clientY, tx, ty };
     area.setPointerCapture(e.pointerId);
     area.classList.add("panning");
@@ -100,7 +100,7 @@
   area.addEventListener("pointerup", endDrag);
   area.addEventListener("pointercancel", endDrag);
   area.addEventListener("dblclick", (e) => {
-    if (e.target.closest(".zoom-controls")) return;
+    if (e.target.closest(".zoom-controls, .history-controls, .sheet-nav")) return;
     z === 1 ? zoomTo(4, e.clientX, e.clientY) : zoomTo(1);
   });
 

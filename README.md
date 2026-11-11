@@ -3,8 +3,10 @@
 Herramienta web estática para separar una imagen (JPG, PNG o WebP) en capas de tinta para imprimir en risografía.
 
 - **Proyecto:** póster (una imagen) o fanzine de 8 páginas en una sola hoja. En fanzine se suben varias imágenes (o un PDF, que se reparte en páginas) y se ordenan a mano arrastrándolas o haciendo clic en dos para intercambiarlas; las que sobran quedan en una bandeja. La hoja se impone sola (fila de arriba invertida: 5 4 3 2, abajo: 6 7 8 1), siempre en horizontal: A4 da páginas A7 y A3 da páginas A6. La preview marca los dobleces (azul) y el corte (rosa), que no se exportan.
+- **Flipbook:** se sube un video, se marca el tramo y cuántos frames sacar (repartidos parejo) y se reparten en hojas A4/A3 con una franja para encuadernar a la izquierda de cada tarjeta. Las marcas de corte (0,1 mm, por fuera de la grilla, para guillotina) y el número de cada frame se imprimen en una sola tinta, sólida y en registro (por defecto la más oscura). Con varias hojas, los PDF se ordenan por tambor: todas las hojas de la tinta 1, luego las de la tinta 2…
 - **Talleres:** paletas de Aoi Club, Rata Estudio y Lab360 UDP, con sus valores exactos de color.
 - **Separación:** automática (mezcla las tintas elegidas para aproximar cada color, priorizando el tono), CMYK o RGB. Admite de 1 a 4 capas.
+- **Cuentagotas:** toma un color de la imagen y mándalo a una tinta (o al papel, para quitarlo). Esa zona se imprime en tinta sólida, sin mezclas, en cualquier modo de separación. Cada regla tiene su tolerancia, con borde suave.
 - **Trama:** tono continuo, halftone (circle, line, square, ellipse, cross) o dither (atkinson, floydsteinberg, bayer, none). Puede ser global o propia de cada capa. Cada capa tiene su propio ángulo para evitar el moiré.
 - **Preview:** las capas se sobreimprimen con multiply sobre papel blanco. La línea gris marca el área imprimible y no se exporta.
 - **Página:** A4 o A3, vertical u horizontal. *Contener* muestra la imagen completa; *rellenar* cubre toda el área imprimible y recorta lo que sobra.
@@ -29,6 +31,8 @@ js/inks.js           tintas de cada taller
 js/separation.js     color → cobertura de tinta (modos auto y cmyk)
 js/sketch.js         preview, tramas, exportación e interfaz
 js/zine.js           fanzine de 8 páginas: imposición, orden de páginas y guías
+js/flip.js           flipbook: video → frames, hojas, marcas de corte y números
+js/recolor.js        cuentagotas: reemplazar un color por una tinta o el papel
 js/zoom.js           zoom y desplazamiento de la preview
 js/vendor/p5.riso.js
 ```
