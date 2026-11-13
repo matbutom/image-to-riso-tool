@@ -389,13 +389,8 @@ function syncFlipVideoUI() {
 
 function flipLayoutMeta() {
   const L = flipLayout();
-  const total = flipSheetCount();
-  const frames = flipFrames.length
-    ? `${flipFrames.length} frames en ${total} hoja${total === 1 ? "" : "s"}`
-    : "aún sin frames";
   const mm = (v) => Math.round(v * 10) / 10;
-  const auto = state.flip.size === "auto" ? "auto · " : "";
-  return `${auto}${L.cols} × ${L.rows} · ${L.perSheet} por hoja · tarjeta ${mm(L.cardW)} × ${mm(L.cardH)} mm · frame ${mm(L.frameW)} × ${mm(L.frameH)} mm · ${frames}`;
+  return `tamaño de cada tarjeta: ${mm(L.cardW)} × ${mm(L.cardH)} mm`;
 }
 
 // Layer picker for marks: Auto | ● 1 | ● 2 ...
@@ -409,9 +404,6 @@ function renderFlipMarksToggle() {
       })
       .join("");
   setActive("toggle-flip-marks", String(state.flip.marks));
-  const i = flipMarksLayer();
-  $("meta-flip-marks").textContent =
-    i >= 0 ? `marcas de corte y números en la capa ${i + 1} · ${inkBySlug(state.layers[i].ink).name}` : "";
 }
 
 function syncFlipUI() {

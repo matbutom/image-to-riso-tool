@@ -1173,7 +1173,7 @@ function bindUI() {
   const area = $("canvas-area");
   // Empty canvas: a click anywhere opens the file picker
   area.addEventListener("click", (e) => {
-    if (srcImg || busy || e.target.closest(".zoom-controls, .history-controls, .sheet-nav")) return;
+    if (srcImg || busy || e.target.closest(".zoom-controls, .history-controls, .sheet-nav, .help-btn")) return;
     if (state.project === "zine") openZinePicker();
     else if (state.project === "flip") $("flip-input").click();
     else $("file-input").click();
@@ -1395,7 +1395,7 @@ function syncUI() {
     : "sin imagen · también puedes arrastrarla al lienzo";
 
   const modeMeta = {
-    auto: "mezcla las tintas elegidas para aproximar cada color, priorizando el tono",
+    auto: "",
     cmyk: "cada capa imprime un canal c / m / y / k",
     rgb: "cada capa imprime donde falta su canal r / g / b",
   };
@@ -1485,7 +1485,7 @@ function syncScreenUI() {
       ? `${name}: trama propia`
       : `${name}: sigue la trama global · al cambiar algo pasa a tener trama propia`;
   } else {
-    $("meta-scope").textContent = "aplica a todas las capas sin trama propia (*)";
+    $("meta-scope").textContent = "";
   }
 
   setActive("group-style", cfg.style);

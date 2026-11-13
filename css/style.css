@@ -1179,6 +1179,125 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   font-size: 11px;
 }
 
+/* ── HELP + CREDITS ──────────────────────────── */
+
+.help-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--blue);
+  background: var(--paper);
+  border: 1px solid var(--blue);
+  border-radius: 50%;
+  box-shadow: 2px 2px 0 var(--pink);
+  cursor: pointer;
+  transition: background 0.12s, box-shadow 0.12s, transform 0.12s;
+}
+
+.help-btn:hover {
+  background: var(--yellow);
+  box-shadow: 1px 1px 0 var(--pink);
+  transform: translate(1px, 1px);
+}
+
+.help {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  color: var(--blue);
+  background: var(--paper);
+  border: 1px solid var(--blue);
+  box-shadow: 6px 6px 0 var(--pink);
+}
+
+.help::backdrop {
+  background: color-mix(in srgb, var(--blue) 28%, transparent);
+}
+
+.help-inner {
+  padding: 18px 22px 20px;
+}
+
+.help-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--blue);
+}
+
+.help-head h2 {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.help-steps {
+  list-style: none;
+}
+
+.help-steps li {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 8px;
+  padding: 11px 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  border-bottom: 1px dashed var(--blue-30);
+}
+
+.help-steps .step-num {
+  padding-top: 2px;
+}
+
+.help-steps em {
+  font-style: normal;
+  background: var(--yellow-35);
+}
+
+.help-keys,
+.help-credits,
+.credits {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--blue-80);
+}
+
+.help-keys {
+  margin-top: 12px;
+}
+
+.help-credits {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--blue);
+}
+
+.help-credits a,
+.credits a {
+  color: var(--blue);
+  text-decoration-color: var(--pink);
+  text-underline-offset: 2px;
+}
+
+.help-credits a:hover,
+.credits a:hover {
+  background: var(--yellow);
+}
+
+.credits {
+  margin-top: 4px;
+  color: var(--blue-60);
+}
+
 /* ── RESPONSIVE ──────────────────────────────── */
 
 /* hidden on desktop: phone-only tab bar and header status */
@@ -1310,6 +1429,11 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
 
   .sheet-nav {
     top: 10px;
+  }
+
+  .help-btn {
+    top: 10px;
+    right: 10px;
   }
 
   /* active step panel */

@@ -38,6 +38,7 @@ js/flip.js           flipbook: video → frames, hojas, marcas de corte y númer
 js/recolor.js        cuentagotas: reemplazar un color por una tinta o el papel
 js/zoom.js           zoom y desplazamiento de la preview (rueda, trackpad o dos dedos)
 js/mobile.js         teléfono: un paso a la vez con barra de pestañas
+js/help.js           botón ? con el mini tutorial
 js/vendor/p5.riso.js
 ```
 
@@ -59,3 +60,7 @@ Luego abre `http://localhost:8000`.
 4. Al cabo de un minuto la herramienta queda en `https://<usuario>.github.io/<repo>/`.
 
 Todas las rutas son relativas, así que funciona servida desde esa subruta.
+
+## Créditos
+
+Hecho por [@danielasalamanca](https://github.com/danielasalamanca) y [@matbutom](https://github.com/matbutom).

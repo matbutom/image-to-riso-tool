@@ -226,7 +226,7 @@ function bindRecolorUI() {
     "click",
     (e) => {
       if (!recolorPicking) return;
-      if (e.target.closest(".zoom-controls, .history-controls, .sheet-nav")) return;
+      if (e.target.closest(".zoom-controls, .history-controls, .sheet-nav, .help-btn")) return;
       e.stopImmediatePropagation(); // not a "load a file" click
       const rgb = sampleSourceAt(e.clientX, e.clientY);
       if (!rgb) return setStatus("haz clic dentro de la imagen · esc cancela");

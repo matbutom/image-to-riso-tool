@@ -340,7 +340,6 @@
                   <span class="row-label">Marcas y números en</span>
                   <div class="seg" id="toggle-flip-marks"></div>
                 </div>
-                <p class="meta" id="meta-flip-marks"></p>
               </div>
             </div>
           </details>
@@ -379,6 +378,10 @@
             </button>
           </div>
           <p class="status" id="meta-status">carga una imagen para empezar</p>
+          <p class="credits">
+            por <a href="https://github.com/danielasalamanca" target="_blank" rel="noopener">@danielasalamanca</a>
+            y <a href="https://github.com/matbutom" target="_blank" rel="noopener">@matbutom</a>
+          </p>
         </footer>
 
         <!-- phone: one step at a time (mobile.js) -->
@@ -392,6 +395,7 @@
       </aside>
 
       <main class="canvas-area" id="canvas-area">
+        <button class="help-btn" id="btn-help" type="button" aria-label="cómo se usa" title="Cómo se usa (?)">?</button>
         <div class="canvas-wrapper" id="canvas-wrapper"></div>
         <div class="loupe" id="loupe" hidden aria-hidden="true">
           <span class="loupe-swatch"></span><span class="loupe-hex"></span>
@@ -425,6 +429,47 @@
       </main>
     </div>
 
+    <!-- mini tutorial (help.js) -->
+    <dialog class="help" id="help-dialog" aria-labelledby="help-title">
+      <div class="help-inner">
+      <div class="help-head">
+        <h2 id="help-title">Cómo se usa</h2>
+        <button class="icon-btn" type="button" data-close aria-label="cerrar"><span class="ms" aria-hidden="true">close</span></button>
+      </div>
+      <ol class="help-steps">
+        <li>
+          <span class="step-num">01</span>
+          <div><b>Imagen.</b> Elige el proyecto: <em>Póster</em> (una imagen), <em>Fanzine</em> (8 páginas en una hoja) o <em>Flipbook</em> (a partir de un video). Sube tus archivos o arrástralos al lienzo.</div>
+        </li>
+        <li>
+          <span class="step-num">02</span>
+          <div><b>Tintas.</b> Elige el taller y una tinta por capa: cada capa es un tambor de la riso. <em>Auto</em> mezcla tus tintas para acercarse a los colores de la imagen. Con el <em>cuentagotas</em> mandas un color de la imagen a una tinta o al papel.</div>
+        </li>
+        <li>
+          <span class="step-num">03</span>
+          <div><b>Trama.</b> Tono continuo, halftone o dither, para todas las capas o una por una. Cada capa tiene su propio ángulo para evitar el moiré.</div>
+        </li>
+        <li>
+          <span class="step-num">04</span>
+          <div><b>Página.</b> Formato A4 o A3, orientación y cómo se ajusta la imagen a la hoja.</div>
+        </li>
+        <li>
+          <span class="step-num">05</span>
+          <div><b>Exportar.</b> Los <em>Másters b/n</em> son los que van a la riso (negro = 100 % de tinta). <em>Color</em> y <em>Capas color</em> sirven para ver cómo va a quedar. Todo a 300 dpi, en PDF o PNG.</div>
+        </li>
+      </ol>
+      <p class="help-keys">
+        <b>Atajos</b> · ⌘Z deshacer · ⇧⌘Z rehacer · + / − / 0 zoom · rueda o dos dedos: zoom ·
+        ← → hojas del flipbook · esc cancela
+      </p>
+      <p class="help-credits">
+        Hecho por <a href="https://github.com/danielasalamanca" target="_blank" rel="noopener">@danielasalamanca</a>
+        y <a href="https://github.com/matbutom" target="_blank" rel="noopener">@matbutom</a> ·
+        <a href="https://github.com/matbutom/image-to-riso-tool" target="_blank" rel="noopener">código en GitHub</a>
+      </p>
+      </div>
+    </dialog>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -438,5 +483,6 @@
     <script src="js/recolor.js"></script>
     <script src="js/zoom.js"></script>
     <script src="js/mobile.js"></script>
+    <script src="js/help.js"></script>
   </body>
 </html>

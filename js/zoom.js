@@ -85,7 +85,7 @@
   let drag = null;
   let pinch = null;
   const touches = new Map(); // pointerId → { x, y }
-  const onControls = (e) => e.target.closest(".zoom-controls, .history-controls, .sheet-nav");
+  const onControls = (e) => e.target.closest(".zoom-controls, .history-controls, .sheet-nav, .help-btn");
 
   function pinchState() {
     const [a, b] = [...touches.values()];
@@ -130,7 +130,7 @@
   area.addEventListener("pointerup", endDrag);
   area.addEventListener("pointercancel", endDrag);
   area.addEventListener("dblclick", (e) => {
-    if (e.target.closest(".zoom-controls, .history-controls, .sheet-nav")) return;
+    if (e.target.closest(".zoom-controls, .history-controls, .sheet-nav, .help-btn")) return;
     z === 1 ? zoomTo(4, e.clientX, e.clientY) : zoomTo(1);
   });
 
