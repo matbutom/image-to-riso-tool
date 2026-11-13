@@ -43,7 +43,7 @@ const state = {
   flip: { size: "auto", binding: 10, marginY: 0, marks: "auto" }, // size: auto (fills the sheet) | s | m | l
   remap: false, // auto mode: false = mix inks, true = send each image colour to one ink (reassign)
   colorRules: [], // eyedropper replacements, see recolor.js: { id, rgb, target: uid | "paper", tol }
-  workshop: "aoi",
+  workshop: "lab360", // default: Lab360 UDP inks (inks.js)
   mode: "auto", // auto | cmyk | rgb
   format: "A4",
   orientation: "portrait", // portrait | landscape
@@ -403,13 +403,18 @@ function buildWorkImage() {
 // Ink coverage per layer (Uint8ClampedArray, 255 = full ink), see separation.js.
 // wanted(i) = false skips layers that won't be used (hidden layers on export).
 // Reassign: main colours of the current source and the ink each goes to.
-// The palette is kept per source (per set of frames in a flipbook) so the
-// preview and the 300 dpi export — and every flipbook sheet — use the same one.
+// The palette is kept per source so the preview and the 300 dpi export use
+// the same one. A flipbook takes it from all of its frames (not just the sheet
+// on screen), so a colour that only shows up later in the animation still
+// gets its own ink and every sheet is separated the same way.
 let remapState = { key: null, palette: [], plan: [], inks: [] };
 function remapFor(px, n, inks) {
-  const key = state.project === "flip" ? flipFrames : srcImg;
+  const flip = state.project === "flip" && flipFrames.length;
+  const key = flip ? flipFrames : srcImg;
   if (remapState.key !== key) {
-    remapState = { key, palette: RisoSep.extractPalette(px, n, Math.min(8, state.layers.length + 3)), plan: [], inks: [] };
+    const maxColors = Math.min(8, state.layers.length + 3);
+    const sample = flip ? flipFramesSample() : { px, n };
+    remapState = { key, palette: RisoSep.extractPalette(sample.px, sample.n, maxColors), plan: [], inks: [] };
   }
   remapState.plan = RisoSep.planRemap(remapState.palette, inks);
   remapState.inks = inks;
@@ -430,7 +435,7 @@ function renderRemapList() {
       if (!L) return "";
       const ink = inkBySlug(L.ink);
       const how = p.matched ? "se queda en" : "pasa a";
-      return `<span class="remap-item" title="${hex(c.rgb)} ${how} ${ink.name} · ${Math.round(c.share * 100)} % de la imagen">
+      return `<span class="remap-item" title="${hex(c.rgb)} ${how} ${ink.name} · ${Math.round(c.share * 100)} % de lo que lleva tinta">
         <span class="swatch swatch-square" style="background:${hex(c.rgb)}"></span>
         <span class="ms" aria-hidden="true">arrow_forward</span>
         <span class="swatch" style="background:${ink.hex}"></span></span>`;

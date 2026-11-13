@@ -282,10 +282,11 @@
     it is relative to that colour (the pure colour = 100 %).
   */
   const REMAP_MATCH_DE = 30; // a colour this close to an ink keeps that ink
-  const REMAP_FREE_BONUS = 12; // lightness (L*) advantage of an ink no colour uses yet
+  const REMAP_FREE_BONUS = 12; // lightness (L*) advantage of an ink no colour uses yet (greys, blacks)
+  const REMAP_NEUTRAL_C = 15; // chroma under this = grey / black / brown-ish neutral
   const REMAP_SIGMA = 16; // softness of the blend between neighbouring colours (ΔE)
   const REMAP_PAPER_SIGMA = 6; // the paper only pulls near-white pixels (no halos at colour edges)
-  const REMAP_MIN_SHARE = 0.015; // colours under 1.5 % of the image are merged away
+  const REMAP_MIN_SHARE = 0.01; // colours under 1 % of the inked area (paper excluded) are merged away
   const REMAP_LUT_N = 33;
   const PAPER_LAB = [100, 0, 0];
 
@@ -295,7 +296,7 @@
   // Main colours of an image: k-means in Lab on a sample, near-white left out.
   // Returns [{ lab, rgb, share }] sorted from light to dark.
   function extractPalette(px, n, maxColors) {
-    const step = Math.max(1, Math.floor(n / 9000));
+    const step = Math.max(1, Math.floor(n / 20000));
     const pts = [];
     const rgbs = [];
     let paper = 0;
@@ -309,7 +310,9 @@
       pts.push(c);
       rgbs.push([px[p], px[p + 1], px[p + 2]]);
     }
-    const total = pts.length + paper;
+    // shares are measured on what carries ink: a sheet that is mostly paper
+    // (flipbooks, zines) must not hide a small but important colour
+    const total = pts.length;
     if (!pts.length) return [];
 
     // deterministic farthest-point seeds, starting from the darkest sample
@@ -395,7 +398,10 @@
 
     // 2. the rest, biggest first, go to the ink closest in lightness (light
     //    colours → light inks, dark → dark), preferring inks nobody uses yet:
-    //    a yellow with no yellow ink lands on the lightest free ink
+    //    a yellow with no yellow ink lands on the lightest free ink. Colourful
+    //    leftovers always take a free ink first, so different colours of the
+    //    image stay on different inks (a light blue next to a pink doesn't
+    //    collapse onto the pink); greys and blacks just follow lightness.
     const rest = palette
       .map((c, i) => i)
       .filter((i) => plan[i].ink < 0)
@@ -404,7 +410,9 @@
       let best = 0;
       let bc = Infinity;
       inkLab.forEach((l, j) => {
-        const cost = Math.abs(l[0] - palette[i].lab[0]) - (used.has(j) ? 0 : REMAP_FREE_BONUS);
+        const colourful = Math.hypot(palette[i].lab[1], palette[i].lab[2]) >= REMAP_NEUTRAL_C;
+        const bonus = used.has(j) ? 0 : colourful ? 100 : REMAP_FREE_BONUS;
+        const cost = Math.abs(l[0] - palette[i].lab[0]) - bonus;
         if (cost < bc) {
           bc = cost;
           best = j;

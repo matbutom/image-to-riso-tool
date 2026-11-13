@@ -182,6 +182,23 @@ function composeFlipSheet(sheet) {
   return img;
 }
 
+// Every frame, small, in one buffer: colour sampling for Auto · Reassign
+function flipFramesSample() {
+  const cell = 64;
+  const ch = Math.max(1, Math.round(cell / flipAspect));
+  const cols = Math.ceil(Math.sqrt(flipFrames.length));
+  const rows = Math.ceil(flipFrames.length / cols);
+  const c = document.createElement("canvas");
+  c.width = cols * cell;
+  c.height = rows * ch;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, c.width, c.height);
+  flipFrames.forEach((f, i) => ctx.drawImage(f, (i % cols) * cell, Math.floor(i / cols) * ch, cell, ch));
+  const px = ctx.getImageData(0, 0, c.width, c.height).data;
+  return { px, n: c.width * c.height };
+}
+
 // ── MARKS + NUMBERS (printed in one ink layer) ──
 
 // Layer index that carries marks and numbers: the chosen one, or the darkest ink
