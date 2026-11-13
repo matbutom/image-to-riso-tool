@@ -21,7 +21,27 @@ const FLIP_MARK_MM = 3.5; // cut mark length
 const FLIP_MARK_GAP_MM = 1; // gap between a mark and the card edge
 const FLIP_LINE_MM = 0.1; // hairline
 const FLIP_NUMBER_MM = 2; // frame number cap height (~6 pt)
-const FLIP_FRAME_PX = 900; // long side of stored frames (≈ 250–380 dpi on the card)
+const FLIP_FRAME_PX = 900; // long side of stored frames for many frames (≈ 250–380 dpi on small cards)
+const FLIP_AUTO_MIN_MM = 40; // auto size: frames never narrower than this (more sheets instead)
+
+// Long side of stored frames: few frames get big cards in auto mode, so keep
+// more pixels (memory stays bounded: few frames × bigger, or many × smaller)
+function flipFramePx(count) {
+  if (count <= 16) return 1800;
+  if (count <= 48) return 1300;
+  return FLIP_FRAME_PX;
+}
+
+// Grid for n cards that gives the widest frame inside gw x gh (mm)
+function bestFlipGrid(n, gw, gh, binding, marginY) {
+  let best = { cols: 1, rows: n, frameW: -Infinity };
+  for (let cols = 1; cols <= n; cols++) {
+    const rows = Math.ceil(n / cols);
+    const frameW = Math.min(gw / cols - binding, (gh / rows - 2 * marginY) * flipAspect);
+    if (frameW > best.frameW + 1e-9) best = { cols, rows, frameW };
+  }
+  return best;
+}
 const FLIP_MAX_FRAMES = 240;
 
 const flipVideo = { el: null, url: null, name: "", duration: 0, w: 0, h: 0, start: 0, end: 0, count: 24 };
@@ -44,20 +64,50 @@ function flipLayout() {
   const gh = ah - 2 * FLIP_INSET_MM;
   const binding = state.flip.binding; // margin X: left strip
   const marginY = state.flip.marginY; // margin Y: above and below the frame
-  let frameW = FLIP_FRAME_MM[state.flip.size];
-  frameW = Math.min(frameW, gw - binding, (gh - 2 * marginY) * flipAspect); // a single card always fits
-  frameW = Math.max(1, frameW);
+  const largest = Math.max(1, Math.min(gw - binding, (gh - 2 * marginY) * flipAspect)); // one card per sheet
+  let frameW;
+  let cols;
+  let rows;
+  let perSheet;
+  if (state.flip.size === "auto") {
+    // Auto: as few sheets as the minimum frame size allows, frames shared
+    // evenly between them, then the grid that makes them as big as possible
+    const n = Math.max(1, flipFrames.length);
+    const minW = Math.min(FLIP_AUTO_MIN_MM, largest);
+    const capacity =
+      Math.max(1, Math.floor(gw / (binding + minW))) *
+      Math.max(1, Math.floor(gh / (minW / flipAspect + 2 * marginY)));
+    const sheets = Math.ceil(n / capacity);
+    perSheet = Math.ceil(n / sheets);
+    const grid = bestFlipGrid(perSheet, gw, gh, binding, marginY);
+    frameW = Math.max(1, Math.min(grid.frameW, largest));
+    cols = grid.cols;
+    rows = grid.rows;
+  } else {
+    frameW = Math.max(1, Math.min(FLIP_FRAME_MM[state.flip.size], largest)); // a single card always fits
+    cols = Math.max(1, Math.floor(gw / (binding + frameW)));
+    rows = Math.max(1, Math.floor(gh / (frameW / flipAspect + 2 * marginY)));
+    perSheet = cols * rows;
+  }
   const frameH = frameW / flipAspect;
-  const cardW = binding + frameW;
-  const cardH = marginY + frameH + marginY;
-  const cols = Math.max(1, Math.floor(gw / cardW));
-  const rows = Math.max(1, Math.floor(gh / cardH));
+  // Auto: the space the frames can't use (they keep the video's proportion)
+  // goes inside the cards — right of the frame (the thumb edge) and above and
+  // below it — so the cards cover the whole sheet and still share cut lines
+  let padR = 0;
+  let padY = marginY;
+  if (state.flip.size === "auto") {
+    padR = Math.max(0, gw / cols - binding - frameW);
+    padY = Math.max(marginY, (gh / rows - frameH) / 2);
+  }
+  const cardW = binding + frameW + padR;
+  const cardH = padY + frameH + padY;
   return {
     cols,
     rows,
-    perSheet: cols * rows,
+    perSheet,
     binding,
-    marginY,
+    marginY: padY, // margin above / below the frame inside the card
+    padR,
     frameW,
     frameH,
     cardW,
@@ -123,7 +173,7 @@ function composeFlipSheet(sheet) {
   flipCards(sheet, L).forEach(({ n, x, y }) => {
     const x0 = Math.round((x + L.binding) * k);
     const y0 = Math.round((y + L.marginY) * k);
-    const x1 = Math.round((x + L.cardW) * k);
+    const x1 = Math.round((x + L.binding + L.frameW) * k);
     const y1 = Math.round((y + L.marginY + L.frameH) * k);
     ctx.drawImage(flipFrames[n], x0, y0, x1 - x0, y1 - y0);
   });
@@ -276,7 +326,7 @@ async function extractFlipFrames() {
   syncFlipVideoUI();
   v.pause();
   const { start, end, count } = flipVideo;
-  const s = FLIP_FRAME_PX / Math.max(flipVideo.w, flipVideo.h);
+  const s = Math.min(1, flipFramePx(count) / Math.max(flipVideo.w, flipVideo.h));
   const fw = Math.max(1, Math.round(flipVideo.w * s));
   const fh = Math.max(1, Math.round(flipVideo.h * s));
   const frames = [];
@@ -344,7 +394,8 @@ function flipLayoutMeta() {
     ? `${flipFrames.length} frames en ${total} hoja${total === 1 ? "" : "s"}`
     : "aún sin frames";
   const mm = (v) => Math.round(v * 10) / 10;
-  return `${L.cols} × ${L.rows} = ${L.perSheet} por hoja · tarjeta ${mm(L.cardW)} × ${mm(L.cardH)} mm · frame ${mm(L.frameW)} × ${mm(L.frameH)} mm · ${frames}`;
+  const auto = state.flip.size === "auto" ? "auto · " : "";
+  return `${auto}${L.cols} × ${L.rows} · ${L.perSheet} por hoja · tarjeta ${mm(L.cardW)} × ${mm(L.cardH)} mm · frame ${mm(L.frameW)} × ${mm(L.frameH)} mm · ${frames}`;
 }
 
 // Layer picker for marks: Auto | ● 1 | ● 2 ...

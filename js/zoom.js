@@ -11,7 +11,8 @@
   const wrapper = document.getElementById("canvas-wrapper");
   const label = document.getElementById("zoom-level");
   let z = 1;
-  let quality = 1; // preview resolution multiplier currently rendered
+  const BASE = window.BASE_PREVIEW_QUALITY || 1; // 2 on retina screens (sketch.js)
+  let quality = BASE; // preview resolution multiplier currently rendered
   let qualityTimer = null;
   let tx = 0;
   let ty = 0;
@@ -33,7 +34,7 @@
   function scheduleQuality() {
     clearTimeout(qualityTimer);
     qualityTimer = setTimeout(() => {
-      const q = Math.min(3, Math.ceil(z - 0.01));
+      const q = Math.max(BASE, Math.min(3, Math.ceil(z - 0.01)));
       if (q === quality || !window.setPreviewQuality) return;
       quality = q;
       window.setPreviewQuality(q);

@@ -14,7 +14,14 @@ const EXPORT_PX = { A4: [2480, 3508], A3: [3508, 4961] }; // 300 dpi, portrait
 const EXPORT_DPI = 300;
 
 const PREVIEW_LONG = 940; // preview canvas long side (keeps the image area under ~900 px)
-let previewQuality = 1; // canvas resolution multiplier, raised while zoomed in (see zoom.js)
+// Canvas resolution multiplier: 2 on retina/hi-dpi screens so the preview is
+// drawn at device resolution, raised further while zoomed in (see zoom.js)
+const BASE_PREVIEW_QUALITY = Math.min(2, Math.max(1, Math.round(window.devicePixelRatio || 1)));
+window.BASE_PREVIEW_QUALITY = BASE_PREVIEW_QUALITY;
+let previewQuality = BASE_PREVIEW_QUALITY;
+// Halftone / dither are computed at this many pixels per base-preview pixel,
+// in the preview and in exports alike: finer dot edges, same screen and lpi
+const SCREEN_SUPERSAMPLE = 2;
 const MAX_PREVIEW_IMG = 900; // max long side of the preview working image
 const MAX_LAYERS = 4;
 const HALFTONE_THRESHOLD = 127; // p5.riso halftoneImage() "intensity": binarises the dots
@@ -33,7 +40,7 @@ const state = {
   project: "poster", // poster | zine (8-page fanzine, zine.js) | flip (flipbook from a video, flip.js)
   zine: { pages: [null, null, null, null, null, null, null, null], tray: [] }, // image ids
   // flipbook: frame size s|m|l, margin X (left binding strip) and Y (above + below) in mm, marks layer uid
-  flip: { size: "m", binding: 10, marginY: 0, marks: "auto" },
+  flip: { size: "auto", binding: 10, marginY: 0, marks: "auto" }, // size: auto (fills the sheet) | s | m | l
   colorRules: [], // eyedropper replacements, see recolor.js: { id, rgb, target: uid | "paper", tol }
   workshop: "aoi",
   mode: "auto", // auto | cmyk | rgb
@@ -427,19 +434,58 @@ function screenLayer(ink, w, h, cfg, angle, pxScale, iw = w, ih = h) {
     return renderHalftone(ink, iw, ih, w, h, cfg.shape, cfg.frequency, angle, pxScale);
   }
   if (cfg.style === "dither") {
-    return renderDither(ink, w, h, cfg.ditherType, cfg.threshold, pxScale);
+    return renderDither(ink, iw, ih, w, h, cfg.ditherType, cfg.threshold, pxScale);
   }
+  const src = resampleInk(ink, iw, ih, w, h);
   const out = new Uint8ClampedArray(w * h);
-  for (let i = 0; i < out.length; i++) out[i] = 255 - ink[i];
+  for (let i = 0; i < out.length; i++) out[i] = 255 - src[i];
+  return out;
+}
+
+// Size of the screening buffer for an output of w x h: SCREEN_SUPERSAMPLE
+// pixels per base-preview pixel (grain = output px per base-preview px)
+function screenBufferSize(w, h, grain) {
+  const k = SCREEN_SUPERSAMPLE / Math.max(0.001, grain);
+  return [Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k))];
+}
+
+// Screen buffer (dw x dh, 0 = ink) → output w x h: area average when it is
+// larger (preview on a low-dpi screen: smooth), nearest neighbour when smaller
+// (exports: crisp, unscreened again by the riso)
+function screenToOutput(buf, dw, dh, w, h) {
+  if (dw === w && dh === h) return buf;
+  return dw > w ? downsample(buf, dw, dh, w, h) : upsampleNearest(buf, dw, dh, w, h);
+}
+
+// Ink map iw x ih → tw x th (area average down, bilinear up)
+function resampleInk(ink, iw, ih, tw, th) {
+  if (tw === iw && th === ih) return ink;
+  if (tw <= iw && th <= ih) return downsample(ink, iw, ih, tw, th);
+  const out = new Uint8ClampedArray(tw * th);
+  const sx = iw / tw;
+  const sy = ih / th;
+  for (let y = 0; y < th; y++) {
+    const fy = Math.min(ih - 1, Math.max(0, (y + 0.5) * sy - 0.5));
+    const y0 = Math.floor(fy);
+    const y1 = Math.min(ih - 1, y0 + 1);
+    const wy = fy - y0;
+    for (let x = 0; x < tw; x++) {
+      const fx = Math.min(iw - 1, Math.max(0, (x + 0.5) * sx - 0.5));
+      const x0 = Math.floor(fx);
+      const x1 = Math.min(iw - 1, x0 + 1);
+      const wx = fx - x0;
+      const a = ink[y0 * iw + x0] + (ink[y0 * iw + x1] - ink[y0 * iw + x0]) * wx;
+      const b = ink[y1 * iw + x0] + (ink[y1 * iw + x1] - ink[y1 * iw + x0]) * wx;
+      out[y * tw + x] = a + (b - a) * wy;
+    }
+  }
   return out;
 }
 
 // Dither at preview-equivalent grain so exports keep the preview's look
-function renderDither(ink, w, h, type, threshold, grain) {
-  const g = Math.max(1, grain);
-  const dw = Math.max(1, Math.round(w / g));
-  const dh = Math.max(1, Math.round(h / g));
-  const small = downsample(ink, w, h, dw, dh);
+function renderDither(ink, iw, ih, w, h, type, threshold, grain) {
+  const [dw, dh] = screenBufferSize(w, h, grain);
+  const small = resampleInk(ink, iw, ih, dw, dh);
 
   const img = createImage(dw, dh);
   img.loadPixels();
@@ -454,7 +500,7 @@ function renderDither(ink, w, h, type, threshold, grain) {
   dithered.loadPixels();
   const out = new Uint8ClampedArray(dw * dh);
   for (let i = 0, p = 0; i < out.length; i++, p += 4) out[i] = dithered.pixels[p];
-  return upsampleNearest(out, dw, dh, w, h);
+  return screenToOutput(out, dw, dh, w, h);
 }
 
 // Halftone with p5.riso's halftoneImage(): one sample per cell, dot size
@@ -464,15 +510,14 @@ function renderDither(ink, w, h, type, threshold, grain) {
 // exactly the preview's texture and the library's 2x-size buffers stay small.
 // ink is iw x ih; the result is w x h (0 = full ink, 255 = paper).
 function renderHalftone(ink, iw, ih, w, h, shape, cellPx, angleDeg, grain) {
-  const g = Math.max(1, grain);
-  const dw = Math.max(1, Math.round(w / g));
-  const dh = Math.max(1, Math.round(h / g));
-  const small = downsample(ink, iw, ih, dw, dh);
+  const [dw, dh] = screenBufferSize(w, h, grain);
+  const small = resampleInk(ink, iw, ih, dw, dh);
   const src = grayToImage(small.map((v) => 255 - v), dw, dh);
 
   // The library samples pixels[(x + y·w)·4] on a grid of this step: it must be
-  // a whole number of pixels or no dot is ever drawn.
-  const gridsize = Math.max(2, Math.round(cellPx));
+  // a whole number of pixels or no dot is ever drawn. cellPx is in
+  // base-preview pixels; the buffer has SCREEN_SUPERSAMPLE of them per pixel.
+  const gridsize = Math.max(2, Math.round(cellPx * SCREEN_SUPERSAMPLE));
   // p5.riso rotates with the sketch's angleMode, which is radians here
   const angle = (angleDeg * Math.PI) / 180;
   const result = withTempGraphics(() =>
@@ -482,7 +527,7 @@ function renderHalftone(ink, iw, ih, w, h, shape, cellPx, angleDeg, grain) {
   result.loadPixels();
   const out = new Uint8ClampedArray(dw * dh);
   for (let i = 0, p = 0; i < out.length; i++, p += 4) out[i] = result.pixels[p];
-  return upsampleNearest(out, dw, dh, w, h);
+  return screenToOutput(out, dw, dh, w, h);
 }
 
 // p5.riso's halftoneImage() creates two p5.Graphics (2x the image size) and
@@ -576,17 +621,13 @@ function runPipeline(stage) {
         let gray;
         let gw = img.width;
         let gh = img.height;
-        if (cfg.style === "halftone") {
+        if (cfg.style === "continuous") {
+          gray = screenLayer(inkMaps[i], img.width, img.height, cfg, L.angle, pxScale);
+        } else {
+          // screens at canvas resolution (ow x oh) from the base-resolution ink map
           gray = screenLayer(inkMaps[i], ow, oh, cfg, L.angle, outScale, img.width, img.height);
           gw = ow;
           gh = oh;
-        } else {
-          gray = screenLayer(inkMaps[i], img.width, img.height, cfg, L.angle, pxScale);
-          if (cfg.style === "dither") {
-            gray = upsampleNearest(gray, img.width, img.height, ow, oh);
-            gw = ow;
-            gh = oh;
-          }
         }
         if (i === marksIdx) overlayFlipMarks(gray, gw, gh, flipSheetIndex);
         return grayToImage(gray, gw, gh);
