@@ -898,6 +898,38 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   line-height: 30px;
 }
 
+/* ── AUTO · REASSIGN ─────────────────────────── */
+
+.remap-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.remap-list[hidden] {
+  display: none;
+}
+
+.remap-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 6px;
+  border: 1px solid var(--blue-30);
+  background: var(--paper);
+}
+
+.remap-item .swatch {
+  width: 14px;
+  height: 14px;
+}
+
+.remap-item .ms {
+  font-size: 13px;
+  color: var(--blue-60);
+}
+
 /* ── EYEDROPPER / COLOR RULES ────────────────── */
 
 #btn-eyedropper.on {

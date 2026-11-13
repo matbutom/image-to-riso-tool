@@ -230,7 +230,11 @@
   // wanted(i) = false leaves that ink's map null (export of hidden layers).
   function autoInkMaps(px, n, inksRgb, wanted = () => true) {
     const { k, data } = buildLUT(inksRgb);
-    const N = LUT_N;
+    return lutInkMaps(px, n, data, k, LUT_N, wanted);
+  }
+
+  // Trilinear lookup of an N³ RGB grid holding k coverages per node (0..1)
+  function lutInkMaps(px, n, data, k, N, wanted) {
     const S = (N - 1) / 255;
     const maps = [];
     const idx = [];
@@ -268,6 +272,209 @@
     return maps;
   }
 
+  // ── auto · reassign: image colours → chosen inks ──
+
+  /*
+    Instead of approximating every colour with a mix, the image's main colours
+    are each sent to ONE ink. Colours that clearly match an ink stay on it;
+    the rest go to the inks that are left, lightest colour to lightest ink.
+    Every pixel then prints its colour's ink at a strength given by how dark
+    it is relative to that colour (the pure colour = 100 %).
+  */
+  const REMAP_MATCH_DE = 30; // a colour this close to an ink keeps that ink
+  const REMAP_FREE_BONUS = 12; // lightness (L*) advantage of an ink no colour uses yet
+  const REMAP_SIGMA = 16; // softness of the blend between neighbouring colours (ΔE)
+  const REMAP_PAPER_SIGMA = 6; // the paper only pulls near-white pixels (no halos at colour edges)
+  const REMAP_MIN_SHARE = 0.015; // colours under 1.5 % of the image are merged away
+  const REMAP_LUT_N = 33;
+  const PAPER_LAB = [100, 0, 0];
+
+  const dE = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  const isPaper = (c) => c[0] > 92 && Math.hypot(c[1], c[2]) < 10;
+
+  // Main colours of an image: k-means in Lab on a sample, near-white left out.
+  // Returns [{ lab, rgb, share }] sorted from light to dark.
+  function extractPalette(px, n, maxColors) {
+    const step = Math.max(1, Math.floor(n / 9000));
+    const pts = [];
+    const rgbs = [];
+    let paper = 0;
+    for (let q = 0; q < n; q += step) {
+      const p = q * 4;
+      const c = lab(px[p], px[p + 1], px[p + 2], [0, 0, 0]);
+      if (isPaper(c)) {
+        paper++;
+        continue;
+      }
+      pts.push(c);
+      rgbs.push([px[p], px[p + 1], px[p + 2]]);
+    }
+    const total = pts.length + paper;
+    if (!pts.length) return [];
+
+    // deterministic farthest-point seeds, starting from the darkest sample
+    const K = Math.min(maxColors, pts.length);
+    let first = 0;
+    pts.forEach((c, i) => {
+      if (c[0] < pts[first][0]) first = i;
+    });
+    const centers = [pts[first].slice()];
+    const dmin = pts.map((c) => dE(c, centers[0]));
+    while (centers.length < K) {
+      let far = 0;
+      for (let i = 1; i < pts.length; i++) if (dmin[i] > dmin[far]) far = i;
+      if (dmin[far] < 6) break; // no more distinct colours
+      centers.push(pts[far].slice());
+      for (let i = 0; i < pts.length; i++) dmin[i] = Math.min(dmin[i], dE(pts[i], pts[far]));
+    }
+
+    const assign = new Int32Array(pts.length);
+    for (let it = 0; it < 12; it++) {
+      const sum = centers.map(() => [0, 0, 0, 0]);
+      for (let i = 0; i < pts.length; i++) {
+        let best = 0;
+        let bd = Infinity;
+        for (let c = 0; c < centers.length; c++) {
+          const d = dE(pts[i], centers[c]);
+          if (d < bd) {
+            bd = d;
+            best = c;
+          }
+        }
+        assign[i] = best;
+        const s = sum[best];
+        s[0] += pts[i][0];
+        s[1] += pts[i][1];
+        s[2] += pts[i][2];
+        s[3]++;
+      }
+      centers.forEach((c, i) => {
+        if (sum[i][3]) for (let j = 0; j < 3; j++) c[j] = sum[i][j] / sum[i][3];
+      });
+    }
+
+    // representative sRGB of each colour + share; drop tiny ones
+    const out = centers.map((c) => ({ lab: c, rgbSum: [0, 0, 0], count: 0 }));
+    for (let i = 0; i < pts.length; i++) {
+      const o = out[assign[i]];
+      o.count++;
+      for (let j = 0; j < 3; j++) o.rgbSum[j] += rgbs[i][j];
+    }
+    return out
+      .filter((o) => o.count / total >= REMAP_MIN_SHARE && !isPaper(o.lab))
+      .map((o) => ({
+        lab: o.lab,
+        rgb: o.rgbSum.map((v) => Math.round(v / o.count)),
+        share: o.count / total,
+      }))
+      .sort((a, b) => b.lab[0] - a.lab[0]);
+  }
+
+  // Which ink each palette colour goes to: [{ ink (index into inksRgb), matched }]
+  function planRemap(palette, inksRgb) {
+    const inkLab = inksRgb.map((c) => lab(c[0], c[1], c[2], [0, 0, 0]));
+    const plan = palette.map(() => ({ ink: -1, matched: false }));
+    const used = new Set();
+
+    // 1. colours that clearly match an ink keep it
+    palette.forEach((c, i) => {
+      let best = -1;
+      let bd = Infinity;
+      inkLab.forEach((l, j) => {
+        const d = dE(c.lab, l);
+        if (d < bd) {
+          bd = d;
+          best = j;
+        }
+      });
+      if (best >= 0 && bd < REMAP_MATCH_DE) {
+        plan[i] = { ink: best, matched: true };
+        used.add(best);
+      }
+    });
+
+    // 2. the rest, biggest first, go to the ink closest in lightness (light
+    //    colours → light inks, dark → dark), preferring inks nobody uses yet:
+    //    a yellow with no yellow ink lands on the lightest free ink
+    const rest = palette
+      .map((c, i) => i)
+      .filter((i) => plan[i].ink < 0)
+      .sort((a, b) => palette[b].share - palette[a].share);
+    rest.forEach((i) => {
+      let best = 0;
+      let bc = Infinity;
+      inkLab.forEach((l, j) => {
+        const cost = Math.abs(l[0] - palette[i].lab[0]) - (used.has(j) ? 0 : REMAP_FREE_BONUS);
+        if (cost < bc) {
+          bc = cost;
+          best = j;
+        }
+      });
+      plan[i] = { ink: best, matched: false };
+      used.add(best);
+    });
+    return plan;
+  }
+
+  const remapCache = new Map();
+
+  function buildRemapLUT(inksRgb, palette, plan) {
+    const key = JSON.stringify([inksRgb, palette.map((c) => c.lab.map((v) => v.toFixed(1))), plan]);
+    if (remapCache.has(key)) return remapCache.get(key);
+    const k = inksRgb.length;
+    const N = REMAP_LUT_N;
+    const data = new Float32Array(N * N * N * k);
+    // Strength reference: a matched colour prints 100 % at its own tone;
+    // re-assigned colours sharing an ink are graded so the darkest of them
+    // is 100 % and lighter ones lighter (yellow and blue on one pink stay
+    // apart). A colour alone on its ink also prints 100 %.
+    const refL = palette.map((c, i) => {
+      if (plan[i].matched) return c.lab[0];
+      let L = c.lab[0];
+      palette.forEach((o, j) => {
+        if (!plan[j].matched && plan[j].ink === plan[i].ink) L = Math.min(L, o.lab[0]);
+      });
+      return L;
+    });
+    // anchors: every palette colour plus the paper, which prints no ink
+    const anchors = palette.map((c, i) => ({ lab: c.lab, ink: plan[i].ink, refL: refL[i] }));
+    anchors.push({ lab: PAPER_LAB, ink: -1, refL: 100, sigma: REMAP_PAPER_SIGMA });
+    const t = [0, 0, 0];
+    const s = 255 / (N - 1);
+    const w = new Float64Array(anchors.length);
+    for (let r = 0; r < N; r++) {
+      for (let g = 0; g < N; g++) {
+        for (let b = 0; b < N; b++) {
+          lab(r * s, g * s, b * s, t);
+          let wsum = 0;
+          anchors.forEach((a, i) => {
+            const d = dE(t, a.lab);
+            const sg = a.sigma || REMAP_SIGMA;
+            w[i] = Math.exp(-(d * d) / (2 * sg * sg)) + 1e-12;
+            wsum += w[i];
+          });
+          const o = ((r * N + g) * N + b) * k;
+          anchors.forEach((a, i) => {
+            if (a.ink < 0) return;
+            // strength: how dark this pixel is relative to its colour's reference
+            const strength = Math.min(1, Math.max(0, (100 - t[0]) / Math.max(4, 100 - a.refL)));
+            data[o + a.ink] += (w[i] / wsum) * strength;
+          });
+          for (let i = 0; i < k; i++) data[o + i] = Math.min(1, data[o + i]);
+        }
+      }
+    }
+    const lut = { k, data };
+    if (remapCache.size > 8) remapCache.clear();
+    remapCache.set(key, lut);
+    return lut;
+  }
+
+  function remapInkMaps(px, n, inksRgb, palette, plan, wanted = () => true) {
+    const { k, data } = buildRemapLUT(inksRgb, palette, plan);
+    return lutInkMaps(px, n, data, k, REMAP_LUT_N, wanted);
+  }
+
   // ── cmyk ───────────────────────────────────────
 
   // channel: 0 c, 1 m, 2 y, 3 k. useK = false skips black generation.
@@ -291,5 +498,5 @@
     return out;
   }
 
-  root.RisoSep = { buildLUT, autoInkMaps, cmykInkMap, lab, mixLab, LUT_N };
+  root.RisoSep = { buildLUT, autoInkMaps, cmykInkMap, lab, mixLab, LUT_N, extractPalette, planRemap, remapInkMaps };
 })(typeof window !== "undefined" ? window : globalThis);

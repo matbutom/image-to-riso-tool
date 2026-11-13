@@ -180,6 +180,15 @@
                   <button class="seg-btn" type="button" data-value="rgb">RGB</button>
                 </div>
               </div>
+              <!-- auto only: mix the inks, or send each image colour to one ink -->
+              <div class="row" id="row-remap">
+                <span class="row-label">Colores</span>
+                <div class="seg" id="toggle-remap">
+                  <button class="seg-btn" type="button" data-value="mix" title="mezcla tus tintas para aproximar cada color">Mezclar</button>
+                  <button class="seg-btn" type="button" data-value="remap" title="cambia cada color de la imagen por una de tus tintas, del más claro al más oscuro">Reasignar</button>
+                </div>
+              </div>
+              <div class="remap-list" id="remap-list" aria-label="colores detectados y su tinta"></div>
               <p class="meta" id="meta-mode"></p>
 
               <div class="sub-head">
@@ -443,7 +452,7 @@
         </li>
         <li>
           <span class="step-num">02</span>
-          <div><b>Tintas.</b> Elige el taller y una tinta por capa: cada capa es un tambor de la riso. <em>Auto</em> mezcla tus tintas para acercarse a los colores de la imagen. Con el <em>cuentagotas</em> mandas un color de la imagen a una tinta o al papel.</div>
+          <div><b>Tintas.</b> Elige el taller y una tinta por capa: cada capa es un tambor de la riso. <em>Auto · Mezclar</em> combina tus tintas para acercarse a los colores de la imagen; <em>Auto · Reasignar</em> cambia cada color de la imagen por una de tus tintas (si no elegiste amarillo, el amarillo pasa a tu tinta más clara). Con el <em>cuentagotas</em> mandas un color de la imagen a una tinta o al papel.</div>
         </li>
         <li>
           <span class="step-num">03</span>

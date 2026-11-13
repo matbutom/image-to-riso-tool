@@ -41,6 +41,7 @@ const state = {
   zine: { pages: [null, null, null, null, null, null, null, null], tray: [] }, // image ids
   // flipbook: frame size s|m|l, margin X (left binding strip) and Y (above + below) in mm, marks layer uid
   flip: { size: "auto", binding: 10, marginY: 0, marks: "auto" }, // size: auto (fills the sheet) | s | m | l
+  remap: false, // auto mode: false = mix inks, true = send each image colour to one ink (reassign)
   colorRules: [], // eyedropper replacements, see recolor.js: { id, rgb, target: uid | "paper", tol }
   workshop: "aoi",
   mode: "auto", // auto | cmyk | rgb
@@ -401,13 +402,53 @@ function buildWorkImage() {
 
 // Ink coverage per layer (Uint8ClampedArray, 255 = full ink), see separation.js.
 // wanted(i) = false skips layers that won't be used (hidden layers on export).
+// Reassign: main colours of the current source and the ink each goes to.
+// The palette is kept per source (per set of frames in a flipbook) so the
+// preview and the 300 dpi export — and every flipbook sheet — use the same one.
+let remapState = { key: null, palette: [], plan: [], inks: [] };
+function remapFor(px, n, inks) {
+  const key = state.project === "flip" ? flipFrames : srcImg;
+  if (remapState.key !== key) {
+    remapState = { key, palette: RisoSep.extractPalette(px, n, Math.min(8, state.layers.length + 3)), plan: [], inks: [] };
+  }
+  remapState.plan = RisoSep.planRemap(remapState.palette, inks);
+  remapState.inks = inks;
+  return remapState;
+}
+
+// Sidebar: detected colour → ink
+function renderRemapList() {
+  const list = $("remap-list");
+  const show = state.mode === "auto" && state.remap && srcImg && remapState.palette.length;
+  list.hidden = !show;
+  if (!show) return;
+  const hex = (rgb) => "#" + rgb.map((v) => v.toString(16).padStart(2, "0")).join("").toUpperCase();
+  list.innerHTML = remapState.palette
+    .map((c, i) => {
+      const p = remapState.plan[i];
+      const L = p && state.layers[p.ink];
+      if (!L) return "";
+      const ink = inkBySlug(L.ink);
+      const how = p.matched ? "se queda en" : "pasa a";
+      return `<span class="remap-item" title="${hex(c.rgb)} ${how} ${ink.name} · ${Math.round(c.share * 100)} % de la imagen">
+        <span class="swatch swatch-square" style="background:${hex(c.rgb)}"></span>
+        <span class="ms" aria-hidden="true">arrow_forward</span>
+        <span class="swatch" style="background:${ink.hex}"></span></span>`;
+    })
+    .join("");
+}
+
 function computeInkMaps(img, wanted = () => true) {
   const n = img.width * img.height;
   img.loadPixels();
   const px = img.pixels;
 
   let maps;
-  if (state.mode === "auto") {
+  if (state.mode === "auto" && state.remap) {
+    const inks = state.layers.map((L) => inkBySlug(L.ink).rgb);
+    const { palette, plan } = remapFor(px, n, inks);
+    maps = RisoSep.remapInkMaps(px, n, inks, palette, plan, wanted);
+  } else if (state.mode === "auto") {
     const inks = state.layers.map((L) => inkBySlug(L.ink).rgb);
     maps = RisoSep.autoInkMaps(px, n, inks, wanted);
   } else {
@@ -609,6 +650,7 @@ function runPipeline(stage) {
     if (srcImg) {
       buildWorkImage();
       inkMaps = computeInkMaps(work.img);
+      renderRemapList();
     }
   }
 
@@ -1231,6 +1273,13 @@ function bindUI() {
     syncUI();
     schedule(STAGE.REBUILD);
   });
+  onPick("toggle-remap", (v) => {
+    const on = v === "remap";
+    if (on === state.remap) return;
+    state.remap = on;
+    syncUI();
+    schedule(STAGE.REBUILD);
+  });
 
   // Layers
   $("btn-add-layer").addEventListener("click", () => {
@@ -1385,6 +1434,9 @@ function syncUI() {
 
   setActive("toggle-workshop", state.workshop);
   setActive("group-mode", state.mode);
+  setActive("toggle-remap", state.remap ? "remap" : "mix");
+  $("row-remap").hidden = state.mode !== "auto";
+  renderRemapList();
   setActive("toggle-format", state.format);
   setActive("toggle-orientation", pageOrientation());
   setActive("toggle-fit", state.fit);
